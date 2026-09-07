@@ -1,24 +1,25 @@
 /* ============================================================
-   Entrevilles-Reu — identité "stade sous les projecteurs"
-   Le contenu clair = la pelouse éclairée, la nav/footer sombres
-   = le ciel nocturne. Lagon (teal), corail, or comme accents.
+   Entrevilles-Reu — thème "dashboard esport"
+   Fond sombre intégral, accents néon (cyan/violet), typo technique.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap');
 
 :root {
-    --ink:          #12161F;
-    --ink-soft:     #1B2130;
-    --cream:        #F6F3EC;
-    --texte:        #1C2230;
-    --texte-doux:   #6B7280;
-    --bordure:      #E3DFD4;
+    --fond:         #0B0E14;
+    --panneau:      #12161F;
+    --panneau-alt:  #171C27;
+    --bordure:      rgba(255, 255, 255, 0.08);
+    --bordure-vive: rgba(255, 255, 255, 0.16);
 
-    --lagon:        #1F7A6C;
-    --lagon-vif:    #26957F;
-    --corail:       #FF6B4A;
-    --corail-vif:   #FF5533;
-    --or:           #D9A84E;
+    --texte:        #E7E9F0;
+    --texte-doux:   #8B93A7;
+
+    --cyan:         #2DE1C2;
+    --cyan-vif:     #4FF5D8;
+    --violet:       #8B5CF6;
+    --or:           #F5B942;
+    --rose:         #FF4D6D;
 }
 
 * { box-sizing: border-box; }
@@ -27,36 +28,51 @@ html { scroll-behavior: smooth; }
 
 body {
     margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     font-family: 'Inter', system-ui, sans-serif;
-    background: var(--cream);
+    background: var(--fond);
+    background-image:
+        radial-gradient(circle at 15% 0%, rgba(45, 225, 194, 0.06), transparent 40%),
+        radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.06), transparent 40%);
     color: var(--texte);
     line-height: 1.55;
 }
 
+main, body > .conteneur { flex: 1; }
+
 h1, h2, h3 {
-    font-family: 'Barlow Condensed', 'Inter', sans-serif;
+    font-family: 'Rajdhani', 'Inter', sans-serif;
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: 0.01em;
     margin: 0 0 0.5em;
+    color: #FFFFFF;
 }
 
-h1 { font-size: 2.4rem; font-weight: 800; }
-h2 { font-size: 1.6rem; margin-top: 1.6em; }
-h3 { font-size: 1.2rem; }
+h1 { font-size: 2.5rem; }
+h2 {
+    font-size: 1.5rem;
+    margin-top: 1.6em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--bordure);
+}
+h3 { font-size: 1.15rem; }
 
-p { max-width: 68ch; color: var(--texte); }
+p { max-width: 68ch; color: var(--texte-doux); }
 
-a { color: var(--lagon); }
-a:hover { color: var(--corail); }
+a { color: var(--cyan); text-decoration: none; }
+a:hover { color: var(--cyan-vif); }
 
 .conteneur {
     max-width: 1100px;
     margin: 0 auto;
     padding: 40px 24px;
+    width: 100%;
 }
 
-/* --- Navbar : le ciel nocturne --- */
+/* --- Navbar --- */
 
 .navbar {
     display: flex;
@@ -64,62 +80,59 @@ a:hover { color: var(--corail); }
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
-    padding: 18px 28px;
-    background: var(--ink);
-    border-bottom: 3px solid var(--lagon);
+    padding: 16px 28px;
+    background: var(--panneau);
+    border-bottom: 1px solid var(--bordure);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .navbar-logo {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 800;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
     font-size: 1.4rem;
-    color: var(--cream);
-    text-decoration: none;
-    letter-spacing: 0.01em;
+    color: #FFFFFF;
+    letter-spacing: 0.02em;
 }
 
-.navbar-liens {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-}
+.navbar-liens { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .navbar-liens a {
     margin-left: 4px;
-    padding: 6px 12px;
+    padding: 7px 14px;
     border-radius: 4px;
-    text-decoration: none;
-    color: #C7CBD6;
-    font-size: 0.95rem;
+    color: var(--texte-doux);
+    font-size: 0.92rem;
     font-weight: 500;
     transition: color 0.15s, background 0.15s;
 }
 
-.navbar-liens a:hover {
-    color: var(--cream);
-    background: var(--ink-soft);
-}
+.navbar-liens a:hover { color: var(--cyan); background: var(--panneau-alt); }
 
 /* --- Cartes --- */
 
 .grille-cartes {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 20px;
+    gap: 18px;
     margin-top: 20px;
 }
 
 .carte {
-    background: white;
+    background: var(--panneau);
     border: 1px solid var(--bordure);
-    border-top: 3px solid var(--lagon);
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 20px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.carte:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 1px rgba(45, 225, 194, 0.2), 0 0 24px rgba(45, 225, 194, 0.08);
 }
 
 .carte h3 { margin-top: 12px; }
-
 .carte .bouton { margin-top: 12px; }
 
 /* --- Tableaux --- */
@@ -127,50 +140,75 @@ a:hover { color: var(--corail); }
 table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--panneau);
     margin-top: 20px;
     border: 1px solid var(--bordure);
-    border-radius: 4px;
+    border-radius: 6px;
     overflow: hidden;
 }
 
-thead tr { background: var(--ink); }
+thead tr { background: var(--panneau-alt); }
 
 th {
     text-align: left;
     padding: 12px 14px;
-    color: var(--cream);
-    font-family: 'Barlow Condensed', sans-serif;
+    color: var(--texte);
+    font-family: 'Rajdhani', sans-serif;
     font-weight: 600;
     font-size: 0.95rem;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--bordure-vive);
 }
 
-td {
-    text-align: left;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--bordure);
-}
+td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--bordure); color: var(--texte); }
 
-tbody tr:hover { background: #FBF9F5; }
+tbody tr:hover { background: var(--panneau-alt); }
 tbody tr:last-child td { border-bottom: none; }
 
-td strong { color: var(--lagon); font-size: 1.05em; }
+td strong { color: var(--cyan); font-size: 1.05em; }
 
-/* --- Badges de statut --- */
+/* --- État vide --- */
+
+.etat-vide {
+    margin-top: 20px;
+    padding: 32px 24px;
+    background: var(--panneau);
+    border: 1px dashed var(--bordure-vive);
+    border-radius: 6px;
+    text-align: center;
+    color: var(--texte-doux);
+}
+
+.etat-vide p { margin: 0 auto; }
+
+/* --- Badges de statut (effet lueur) --- */
 
 .badge {
     display: inline-block;
     padding: 3px 12px;
     border-radius: 999px;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: white;
+    letter-spacing: 0.02em;
 }
 
-.badge-a_venir   { background: var(--lagon); }
-.badge-en_cours  { background: var(--corail); }
-.badge-terminee  { background: var(--or); color: var(--ink); }
+.badge-a_venir {
+    background: rgba(45, 225, 194, 0.12);
+    color: var(--cyan-vif);
+    border: 1px solid rgba(45, 225, 194, 0.4);
+}
+
+.badge-en_cours {
+    background: rgba(255, 77, 109, 0.12);
+    color: var(--rose);
+    border: 1px solid rgba(255, 77, 109, 0.4);
+}
+
+.badge-terminee {
+    background: rgba(245, 185, 66, 0.12);
+    color: var(--or);
+    border: 1px solid rgba(245, 185, 66, 0.4);
+}
 
 /* --- Formulaires --- */
 
@@ -180,68 +218,72 @@ form {
     gap: 14px;
     max-width: 420px;
     margin-top: 16px;
+    background: var(--panneau);
+    border: 1px solid var(--bordure);
+    border-radius: 6px;
+    padding: 24px;
 }
 
-label {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--texte);
-}
+label { font-weight: 600; font-size: 0.88rem; color: var(--texte-doux); }
 
 input, select, textarea {
     padding: 10px 12px;
-    border: 1px solid var(--bordure);
+    border: 1px solid var(--bordure-vive);
     border-radius: 4px;
     font-size: 1rem;
     font-family: inherit;
-    background: white;
+    background: var(--fond);
     color: var(--texte);
 }
 
 input:focus, select:focus, textarea:focus {
     outline: none;
-    border-color: var(--lagon);
-    box-shadow: 0 0 0 3px rgba(31, 122, 108, 0.15);
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(45, 225, 194, 0.15);
 }
 
 /* --- Boutons --- */
 
 button, .bouton {
-    padding: 11px 20px;
-    background: var(--corail);
-    color: white;
+    padding: 11px 22px;
+    background: var(--cyan);
+    color: #06110F;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-family: 'Barlow Condensed', sans-serif;
+    font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
     font-size: 1.05rem;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
     text-decoration: none;
     display: inline-block;
     width: fit-content;
-    transition: background 0.15s;
+    transition: background 0.15s, box-shadow 0.15s;
 }
 
-button:hover, .bouton:hover { background: var(--corail-vif); }
+button:hover, .bouton:hover {
+    background: var(--cyan-vif);
+    box-shadow: 0 0 20px rgba(45, 225, 194, 0.35);
+}
 
 .erreur {
-    color: #C62828;
+    color: var(--rose);
     font-size: 0.9rem;
-    background: #FDECEA;
-    border: 1px solid #F3C6C2;
+    background: rgba(255, 77, 109, 0.1);
+    border: 1px solid rgba(255, 77, 109, 0.35);
     border-radius: 4px;
     padding: 10px 14px;
     max-width: 420px;
 }
 
-/* --- Footer : referme le ciel nocturne --- */
+/* --- Footer --- */
 
 .pied-page {
     text-align: center;
-    padding: 28px;
-    background: var(--ink);
-    color: #8A90A0;
+    padding: 24px;
+    background: var(--panneau);
+    border-top: 1px solid var(--bordure);
+    color: var(--texte-doux);
     font-size: 0.85rem;
 }
 
@@ -249,6 +291,6 @@ button:hover, .bouton:hover { background: var(--corail-vif); }
 
 @media (max-width: 640px) {
     .navbar { flex-direction: column; align-items: flex-start; gap: 10px; }
-    h1 { font-size: 1.9rem; }
+    h1 { font-size: 2rem; }
     .conteneur { padding: 28px 16px; }
 }
