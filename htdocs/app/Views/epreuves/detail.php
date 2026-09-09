@@ -8,7 +8,7 @@
 <h2>Équipes participantes</h2>
 
 <?php if (empty($participations)): ?>
-    <p>Aucune équipe inscrite pour le moment.</p>
+    <div class="etat-vide"><p>Aucune équipe inscrite pour le moment.</p></div>
 <?php else: ?>
     <table>
         <thead>

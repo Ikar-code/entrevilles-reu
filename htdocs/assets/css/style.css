@@ -1,26 +1,84 @@
 /* ============================================================
    Entrevilles-Reu — thème "dashboard esport"
-   Fond sombre intégral, accents néon (cyan/violet), typo technique.
+   Sombre par défaut ; variante claire quand <html> porte data-theme="clair"
+   (bouton dans la barre de navigation, mémorisé par assets/js/theme.js).
+
+   Toutes les couleurs passent par des variables CSS (--nom) : le thème clair
+   ne fait que redéfinir ces variables, le reste de la feuille ne change pas.
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap');
 
+/* ---------- Palette sombre (par défaut) ---------- */
+
 :root {
-    --fond:         #0B0E14;
-    --panneau:      #12161F;
-    --panneau-alt:  #171C27;
-    --bordure:      rgba(255, 255, 255, 0.08);
-    --bordure-vive: rgba(255, 255, 255, 0.16);
+    color-scheme: dark;              /* les champs de formulaire natifs suivent le thème */
 
-    --texte:        #E7E9F0;
-    --texte-doux:   #8B93A7;
+    --fond:                #0B0E14;
+    --panneau:             #12161F;
+    --panneau-alt:         #171C27;
+    --panneau-translucide: rgba(18, 22, 31, 0.85);
+    --bordure:             rgba(255, 255, 255, 0.08);
+    --bordure-vive:        rgba(255, 255, 255, 0.16);
 
-    --cyan:         #2DE1C2;
-    --cyan-vif:     #4FF5D8;
-    --violet:       #8B5CF6;
-    --or:           #F5B942;
-    --rose:         #FF4D6D;
+    --texte:               #E7E9F0;
+    --texte-doux:          #8B93A7;
+    --texte-fort:          #FFFFFF;   /* titres, logo */
+
+    --cyan:                #2DE1C2;
+    --cyan-vif:            #4FF5D8;
+    --violet:              #8B5CF6;
+    --violet-clair:        #B79CFF;
+    --or:                  #F5B942;
+    --argent:              #C0C7D1;
+    --bronze:              #D89A5B;
+    --rose:                #FF4D6D;
+
+    --bouton-texte:        #06110F;   /* texte sur un bouton cyan */
+    --lueur:               rgba(45, 225, 194, 0.35);
+    --ombre:               0 10px 30px rgba(0, 0, 0, 0.35);
+    --halo-cyan:           rgba(45, 225, 194, 0.06);
+    --halo-violet:         rgba(139, 92, 246, 0.06);
+    --halo-cyan-fort:      rgba(45, 225, 194, 0.18);
+    --halo-violet-fort:    rgba(139, 92, 246, 0.20);
+    --rayon:               8px;
 }
+
+/* ---------- Palette claire ---------- */
+
+[data-theme="clair"] {
+    color-scheme: light;
+
+    --fond:                #F4F1EA;
+    --panneau:             #FFFFFF;
+    --panneau-alt:         #EDE9E0;
+    --panneau-translucide: rgba(255, 255, 255, 0.85);
+    --bordure:             rgba(20, 20, 20, 0.10);
+    --bordure-vive:        rgba(20, 20, 20, 0.18);
+
+    --texte:               #1B1E24;
+    --texte-doux:          #5B6270;
+    --texte-fort:          #0B0E14;
+
+    --cyan:                #0E8A75;
+    --cyan-vif:            #0AA98E;
+    --violet:              #6D3FD9;
+    --violet-clair:        #5B32C4;
+    --or:                  #B9790C;
+    --argent:              #6B7280;
+    --bronze:              #A0522D;
+    --rose:                #D6314F;
+
+    --bouton-texte:        #FFFFFF;
+    --lueur:               rgba(14, 138, 117, 0.25);
+    --ombre:               0 10px 30px rgba(20, 20, 20, 0.08);
+    --halo-cyan:           rgba(14, 138, 117, 0.10);
+    --halo-violet:         rgba(109, 63, 217, 0.08);
+    --halo-cyan-fort:      rgba(14, 138, 117, 0.14);
+    --halo-violet-fort:    rgba(109, 63, 217, 0.14);
+}
+
+/* ---------- Base ---------- */
 
 * { box-sizing: border-box; }
 
@@ -34,10 +92,12 @@ body {
     font-family: 'Inter', system-ui, sans-serif;
     background: var(--fond);
     background-image:
-        radial-gradient(circle at 15% 0%, rgba(45, 225, 194, 0.06), transparent 40%),
-        radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.06), transparent 40%);
+        radial-gradient(circle at 15% 0%, var(--halo-cyan), transparent 40%),
+        radial-gradient(circle at 85% 20%, var(--halo-violet), transparent 40%);
+    background-attachment: fixed;
     color: var(--texte);
     line-height: 1.55;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 main, body > .conteneur { flex: 1; }
@@ -48,7 +108,7 @@ h1, h2, h3 {
     line-height: 1.1;
     letter-spacing: 0.01em;
     margin: 0 0 0.5em;
-    color: #FFFFFF;
+    color: var(--texte-fort);
 }
 
 h1 { font-size: 2.5rem; }
@@ -62,8 +122,11 @@ h3 { font-size: 1.15rem; }
 
 p { max-width: 68ch; color: var(--texte-doux); }
 
-a { color: var(--cyan); text-decoration: none; }
+a { color: var(--cyan); text-decoration: none; transition: color 0.15s; }
 a:hover { color: var(--cyan-vif); }
+
+/* Contour visible au clavier (touche Tab), pas à la souris */
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
 .conteneur {
     max-width: 1100px;
@@ -72,7 +135,7 @@ a:hover { color: var(--cyan-vif); }
     width: 100%;
 }
 
-/* --- Navbar --- */
+/* ---------- Navbar ---------- */
 
 .navbar {
     display: flex;
@@ -80,8 +143,10 @@ a:hover { color: var(--cyan-vif); }
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
-    padding: 16px 28px;
-    background: var(--panneau);
+    padding: 14px 28px;
+    background: var(--panneau-translucide);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--bordure);
     position: sticky;
     top: 0;
@@ -92,25 +157,94 @@ a:hover { color: var(--cyan-vif); }
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
     font-size: 1.4rem;
-    color: #FFFFFF;
+    color: var(--texte-fort);
     letter-spacing: 0.02em;
 }
+
+.navbar-logo:hover { color: var(--cyan); }
 
 .navbar-liens { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .navbar-liens a {
-    margin-left: 4px;
     padding: 7px 14px;
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--texte-doux);
     font-size: 0.92rem;
     font-weight: 500;
     transition: color 0.15s, background 0.15s;
 }
 
-.navbar-liens a:hover { color: var(--cyan); background: var(--panneau-alt); }
+.navbar-liens a:hover,
+.navbar-liens a.actif { color: var(--cyan); background: var(--panneau-alt); }
 
-/* --- Cartes --- */
+/* Bouton clair / sombre (géré par assets/js/theme.js) */
+.bouton-theme {
+    margin-left: 8px;
+    padding: 7px 14px;
+    background: var(--panneau-alt);
+    border: 1px solid var(--bordure-vive);
+    border-radius: 999px;
+    color: var(--texte);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    cursor: pointer;
+    width: auto;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.bouton-theme:hover {
+    background: var(--panneau-alt);
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: none;
+}
+
+/* ---------- Bannière d'accueil ---------- */
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: 56px 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--panneau) 0%, var(--panneau-alt) 100%);
+    border: 1px solid var(--bordure);
+    box-shadow: var(--ombre);
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 85% 15%, var(--halo-violet-fort), transparent 45%),
+        radial-gradient(circle at 10% 90%, var(--halo-cyan-fort), transparent 45%);
+    pointer-events: none;
+}
+
+.hero-contenu { position: relative; max-width: 640px; }
+
+.hero-surtitre {
+    display: inline-block;
+    margin-bottom: 14px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    background: var(--panneau);
+    border: 1px solid var(--bordure-vive);
+}
+
+.hero h1 { font-size: 3rem; margin-bottom: 12px; }
+.hero h1 span { color: var(--cyan); }
+.hero p { font-size: 1.1rem; margin: 0 0 24px; }
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Cartes ---------- */
 
 .grille-cartes {
     display: grid;
@@ -120,30 +254,64 @@ a:hover { color: var(--cyan-vif); }
 }
 
 .carte {
+    position: relative;
+    overflow: hidden;
     background: var(--panneau);
     border: 1px solid var(--bordure);
-    border-radius: 6px;
-    padding: 20px;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    border-radius: var(--rayon);
+    padding: 22px;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+/* Filet dégradé en haut de la carte, visible au survol */
+.carte::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--cyan), var(--violet));
+    opacity: 0;
+    transition: opacity 0.15s;
 }
 
 .carte:hover {
     border-color: var(--cyan);
-    box-shadow: 0 0 0 1px rgba(45, 225, 194, 0.2), 0 0 24px rgba(45, 225, 194, 0.08);
+    box-shadow: 0 0 0 1px var(--lueur), var(--ombre);
+    transform: translateY(-2px);
 }
+
+.carte:hover::before { opacity: 1; }
 
 .carte h3 { margin-top: 12px; }
 .carte .bouton { margin-top: 12px; }
 
-/* --- Tableaux --- */
+/* Cartes-chiffres de l'accueil (compteurs) */
+.grille-chiffres { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+.carte-chiffre { text-align: center; padding: 26px 18px; }
+
+.carte-chiffre .chiffre {
+    display: block;
+    margin: 6px 0 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 2.6rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--cyan);
+}
+
+.carte-chiffre p { margin: 0 auto; font-size: 0.9rem; }
+
+/* ---------- Tableaux ---------- */
 
 table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--panneau);
     margin-top: 20px;
     border: 1px solid var(--bordure);
-    border-radius: 6px;
+    border-radius: var(--rayon);
     overflow: hidden;
 }
 
@@ -160,28 +328,41 @@ th {
     border-bottom: 1px solid var(--bordure-vive);
 }
 
-td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--bordure); color: var(--texte); }
+td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--bordure);
+    color: var(--texte);
+}
 
+tbody tr { transition: background 0.1s; }
 tbody tr:hover { background: var(--panneau-alt); }
 tbody tr:last-child td { border-bottom: none; }
 
 td strong { color: var(--cyan); font-size: 1.05em; }
 
-/* --- État vide --- */
+/* Podium du classement général */
+.podium td:first-child { font-weight: 700; font-size: 1.05em; white-space: nowrap; }
+.podium-1 td:first-child { color: var(--or); }
+.podium-2 td:first-child { color: var(--argent); }
+.podium-3 td:first-child { color: var(--bronze); }
+
+/* ---------- État vide ---------- */
 
 .etat-vide {
     margin-top: 20px;
     padding: 32px 24px;
     background: var(--panneau);
     border: 1px dashed var(--bordure-vive);
-    border-radius: 6px;
+    border-radius: var(--rayon);
     text-align: center;
     color: var(--texte-doux);
 }
 
 .etat-vide p { margin: 0 auto; }
+.etat-vide .bouton { margin-top: 14px; }
 
-/* --- Badges de statut (effet lueur) --- */
+/* ---------- Badges de statut ---------- */
 
 .badge {
     display: inline-block;
@@ -190,6 +371,7 @@ td strong { color: var(--cyan); font-size: 1.05em; }
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
 .badge-a_venir {
@@ -210,7 +392,7 @@ td strong { color: var(--cyan); font-size: 1.05em; }
     border: 1px solid rgba(245, 185, 66, 0.4);
 }
 
-/* --- Formulaires --- */
+/* ---------- Formulaires ---------- */
 
 form {
     display: flex;
@@ -220,7 +402,7 @@ form {
     margin-top: 16px;
     background: var(--panneau);
     border: 1px solid var(--bordure);
-    border-radius: 6px;
+    border-radius: var(--rayon);
     padding: 24px;
 }
 
@@ -229,27 +411,30 @@ label { font-weight: 600; font-size: 0.88rem; color: var(--texte-doux); }
 input, select, textarea {
     padding: 10px 12px;
     border: 1px solid var(--bordure-vive);
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 1rem;
     font-family: inherit;
     background: var(--fond);
     color: var(--texte);
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
+
+textarea { resize: vertical; min-height: 80px; }
 
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--cyan);
-    box-shadow: 0 0 0 3px rgba(45, 225, 194, 0.15);
+    box-shadow: 0 0 0 3px var(--lueur);
 }
 
-/* --- Boutons --- */
+/* ---------- Boutons ---------- */
 
 button, .bouton {
     padding: 11px 22px;
     background: var(--cyan);
-    color: #06110F;
+    color: var(--bouton-texte);
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
@@ -258,44 +443,41 @@ button, .bouton {
     text-decoration: none;
     display: inline-block;
     width: fit-content;
-    transition: background 0.15s, box-shadow 0.15s;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
 }
 
 button:hover, .bouton:hover {
     background: var(--cyan-vif);
-    box-shadow: 0 0 20px rgba(45, 225, 194, 0.35);
+    color: var(--bouton-texte);
+    box-shadow: 0 0 20px var(--lueur);
 }
+
+button:active, .bouton:active { transform: translateY(1px); }
 
 .erreur {
     color: var(--rose);
     font-size: 0.9rem;
     background: rgba(255, 77, 109, 0.1);
     border: 1px solid rgba(255, 77, 109, 0.35);
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 10px 14px;
     max-width: 420px;
 }
 
-/* --- Footer --- */
+/* ---------- Footer ---------- */
 
 .pied-page {
     text-align: center;
-    padding: 24px;
+    padding: 28px 24px;
     background: var(--panneau);
     border-top: 1px solid var(--bordure);
     color: var(--texte-doux);
     font-size: 0.85rem;
 }
 
-/* --- Responsive --- */
+.pied-page p { margin: 0 auto; }
 
-@media (max-width: 640px) {
-    .navbar { flex-direction: column; align-items: flex-start; gap: 10px; }
-    h1 { font-size: 2rem; }
-    .conteneur { padding: 28px 16px; }
-}
-
-/* --- Espace d'administration --- */
+/* ---------- Espace d'administration ---------- */
 
 .menu-admin {
     display: flex;
@@ -308,7 +490,7 @@ button:hover, .bouton:hover {
 
 .menu-admin a {
     padding: 7px 14px;
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--texte-doux);
     font-weight: 600;
     font-size: 0.9rem;
@@ -327,13 +509,13 @@ button:hover, .bouton:hover {
     display: block;
     background: var(--panneau);
     border: 1px solid var(--bordure);
-    border-radius: 6px;
+    border-radius: var(--rayon);
     padding: 16px;
     color: var(--texte);
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, transform 0.15s;
 }
 
-.stat:hover { border-color: var(--cyan); color: var(--texte); }
+.stat:hover { border-color: var(--cyan); color: var(--texte); transform: translateY(-2px); }
 .stat strong { display: block; font-family: 'Rajdhani', sans-serif; font-size: 2rem; color: var(--cyan); line-height: 1; }
 .stat span { color: var(--texte-doux); font-size: 0.85rem; }
 
@@ -343,7 +525,7 @@ button:hover, .bouton:hover {
 /* Messages flash (après une redirection) */
 .flash {
     padding: 10px 14px;
-    border-radius: 4px;
+    border-radius: 6px;
     margin: 0 0 18px;
     font-size: 0.92rem;
     max-width: none;
@@ -380,12 +562,12 @@ form.form-large { max-width: 720px; }
 .bouton-secondaire:hover { background: var(--panneau); color: var(--cyan); border-color: var(--cyan); box-shadow: none; }
 
 .bouton-danger { background: var(--rose); color: #fff; }
-.bouton-danger:hover { background: #ff6b85; box-shadow: 0 0 20px rgba(255, 77, 109, 0.35); }
+.bouton-danger:hover { background: #ff6b85; color: #fff; box-shadow: 0 0 20px rgba(255, 77, 109, 0.35); }
 
 /* Badges de rôle et de statut d'inscription */
 .badge-super_admin, .badge-admin {
     background: rgba(139, 92, 246, 0.15);
-    color: #B79CFF;
+    color: var(--violet-clair);
     border: 1px solid rgba(139, 92, 246, 0.45);
 }
 .badge-manager {
@@ -409,8 +591,19 @@ form.form-large { max-width: 720px; }
     border: 1px solid rgba(245, 185, 66, 0.4);
 }
 
-.carte h3:only-of-type,
-.carte h3:first-child + p {
-    font-size: 2.2rem;
-    color: var(--lagon-fonce);
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+    .navbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    h1 { font-size: 2rem; }
+    .hero { padding: 36px 22px; }
+    .hero h1 { font-size: 2.2rem; }
+    .conteneur { padding: 28px 16px; }
+    table { display: block; overflow-x: auto; }   /* les grands tableaux défilent au lieu de déborder */
+}
+
+/* Personnes qui ont désactivé les animations dans leur système */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; }
+    html { scroll-behavior: auto; }
 }
