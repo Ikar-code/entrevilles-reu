@@ -5,6 +5,8 @@
 <?php endif; ?>
 
 <form method="POST" action="/login">
+    <?= Csrf::champ() ?>
+
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required>
 
@@ -13,3 +15,5 @@
 
     <button type="submit">Se connecter</button>
 </form>
+
+<p class="lien-secondaire">Pas encore de compte ? <a href="/inscription">Crée-en un</a></p>

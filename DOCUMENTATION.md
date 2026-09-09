@@ -321,13 +321,18 @@ recalcule l'empreinte du mot de passe tapé et on compare. PHP fournit
 
 ### 3.1 Les pages et les droits
 
-Il y a trois sortes de visiteurs :
+Il y a quatre sortes de visiteurs. Le rôle est stocké dans la colonne `role`
+de la table `utilisateur` :
 
-| Visiteur | Description |
-|---|---|
-| **Anonyme** | N'est pas connecté. Peut tout consulter mais rien modifier. |
-| **Joueur** | A créé un compte et s'est connecté. Voit son profil et ses équipes. |
-| **Admin** | Compte avec le rôle `admin`. Accède au tableau de bord d'administration. |
+| Visiteur | Rôle en base | Description |
+|---|---|---|
+| **Anonyme** | (pas de compte) | N'est pas connecté. Peut tout consulter mais rien modifier. |
+| **Joueur** | `joueur` | A créé un compte via « Créer un compte ». Voit son profil et ses équipes. |
+| **Manager de ville** | `manager` | Compte créé par le super admin, rattaché à **une** ville (`ville_id`). Gère les équipes et les membres de sa ville, et inscrit ses équipes aux épreuves (inscription « en attente » jusqu'à validation). |
+| **Super administrateur** | `super_admin` | Gère tout : villes, sports, comptes (dont les managers), épreuves, participations et résultats, équipes. L'ancien rôle `admin` est accepté comme synonyme. |
+
+Le premier super admin se crée avec le script `database/creer_admin.php`
+(section 10.4). Les managers sont créés par le super admin dans « Utilisateurs ».
 
 | Adresse (URL) | Page | Qui y a accès |
 |---|---|---|
@@ -339,8 +344,14 @@ Il y a trois sortes de visiteurs :
 | `/classement` | Classement général des villes | Tous |
 | `/login`, `/inscription`, `/deconnexion` | Connexion, création de compte, déconnexion | Tous |
 | `/profil` | Mon profil et mes équipes | Connecté |
-| `/admin` | Tableau de bord (villes, sports) | Admin |
-| `/admin/villes/nouvelle`, `/admin/villes`, `/admin/villes/4/supprimer` | Créer / supprimer une ville | Admin |
+| `/gestion` | « Ma ville » : mes équipes, inscriptions en attente, prochaines épreuves | Manager |
+| `/admin/equipes`, `/admin/equipes/3` | Équipes, membres et inscriptions aux épreuves (le manager ne voit que sa ville) | Manager et super admin |
+| `/admin` | Tableau de bord d'administration | Super admin |
+| `/admin/villes`, `/admin/sports` | Créer, renommer, supprimer villes et sports | Super admin |
+| `/admin/utilisateurs` | Créer et modifier les comptes, dont les managers de ville | Super admin |
+| `/admin/epreuves`, `/admin/epreuves/5/participations` | Créer les épreuves, changer leur statut, inscrire des équipes, valider, saisir les résultats | Super admin |
+
+Le détail de toutes ces adresses est en section 6.
 
 ### 3.2 L'organisation MVC : un restaurant bien rangé
 
@@ -372,32 +383,48 @@ entrevilles-reu-main/
     │   └── config.php               Charge les clés Supabase, démarre la session
     ├── database/
     │   ├── .htaccess                Interdit de lire ce dossier depuis le navigateur
-    │   ├── creer_admin.php          Script pour créer le premier admin (obsolète, voir 13)
+    │   ├── creer_admin.php          Script (ligne de commande) pour créer le premier super admin
     │   ├── migration_mot_de_passe.sql  Ajoute la colonne mot de passe
+    │   ├── migration_roles.sql      Autorise les rôles manager / super_admin
     │   └── vue_classement_general.sql  Calcule le classement par ville
     └── app/
         ├── .htaccess                Interdit de lire ce dossier depuis le navigateur
         ├── routes.php               La liste « telle adresse → tel contrôleur »
         ├── Core/                    Le noyau technique
         │   ├── autoload.php         Charge les classes automatiquement
-        │   ├── Router.php           Aiguille chaque adresse vers la bonne fonction
-        │   ├── Controller.php       Classe mère des contrôleurs (sait afficher une vue)
-        │   ├── Auth.php             Connexion, déconnexion, vérification des droits
-        │   └── SupabaseClient.php   Parle à la base de données
+        │   ├── Router.php           Aiguille chaque adresse vers la bonne fonction (+ contrôle CSRF)
+        │   ├── Controller.php       Classe mère des contrôleurs (afficher, rediriger, lire un champ…)
+        │   ├── Auth.php             Connexion, déconnexion, rôles et droits
+        │   ├── Csrf.php             Jeton de sécurité des formulaires
+        │   ├── Flash.php            Messages « Ville créée. » affichés après une redirection
+        │   ├── Format.php           Mise en forme des dates pour les vues
+        │   ├── SupabaseClient.php   Parle à la base de données
+        │   └── SupabaseException.php  Erreur levée quand la base refuse une requête
         ├── Models/                  Un fichier par table de la base
         │   ├── Ville.php  Sport.php  Utilisateur.php  Equipe.php
         │   └── MembreEquipe.php  Epreuve.php  Participation.php
         ├── Controllers/             Un fichier par « zone » du site
         │   ├── AccueilController.php   AuthController.php   ProfilController.php
-        │   ├── EpreuveController.php   EquipeController.php
-        │   └── ClassementController.php  AdminController.php
+        │   ├── EpreuveController.php   EquipeController.php  ClassementController.php
+        │   ├── AdminController.php            (super admin : tableau de bord, villes, sports)
+        │   ├── AdminUtilisateurController.php (super admin : comptes et managers)
+        │   ├── AdminEpreuveController.php     (super admin : épreuves, participations, résultats)
+        │   ├── AdminEquipeController.php      (super admin + manager : équipes et membres)
+        │   └── ManagerController.php          (manager : page « Ma ville »)
         └── Views/                   Les gabarits HTML
-            ├── partials/ layout.php  navbar.php  footer.php   (morceaux communs)
-            ├── erreur_404.php
+            ├── partials/ layout.php  navbar.php  footer.php  menu_admin.php
+            ├── erreur_403.php  erreur_404.php  erreur_500.php
             ├── accueil/index.php   auth/login.php   auth/inscription.php
             ├── profil/index.php    epreuves/planning.php  epreuves/detail.php
             ├── equipes/liste.php   equipes/detail.php    classement/index.php
-            └── admin/tableau_de_bord.php   admin/villes/nouvelle.php
+            ├── gestion/index.php                        (« Ma ville » du manager)
+            └── admin/
+                ├── tableau_de_bord.php
+                ├── villes/index.php  villes/modifier.php
+                ├── sports/index.php  sports/modifier.php
+                ├── utilisateurs/index.php  utilisateurs/modifier.php
+                ├── epreuves/index.php  epreuves/modifier.php  epreuves/participations.php
+                └── equipes/index.php  equipes/membres.php
 ```
 
 ### 3.4 Le voyage d'une requête, pas à pas
@@ -422,7 +449,7 @@ sur « Se connecter » → `POST /login`.
 2. Le routeur cherche une route `POST` pour `/login` : c'est `AuthController::traiterLogin()`.
 3. La méthode lit `$_POST['email']` et `$_POST['mot_de_passe']`.
 4. Elle appelle `Utilisateur::verifierIdentifiants(...)`, qui cherche l'email dans la base et compare le mot de passe avec l'empreinte stockée.
-5. Si c'est bon : `Auth::connecter()` range la fiche dans `$_SESSION`, puis on **redirige** vers `/` (réponse `302`). Le navigateur redemande `/` tout seul.
+5. Si c'est bon : `Auth::connecter()` range la fiche dans `$_SESSION`, puis on **redirige** (réponse `302`) vers la page d'accueil du rôle : `/admin` pour un super admin, `/gestion` pour un manager, `/` pour un joueur. Le navigateur redemande cette page tout seul.
 6. Si c'est faux : on ré-affiche le formulaire avec un message d'erreur.
 
 ---
@@ -439,7 +466,14 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/app/Core/autoload.php';
 require_once __DIR__ . '/app/routes.php';
 
-Router::traiter();
+try {
+    Router::traiter();
+} catch (Throwable $e) {
+    // Erreur non prévue (base de données injoignable, bug…) : page d'erreur propre
+    http_response_code(500);
+    $messageErreur = $e->getMessage();
+    require __DIR__ . '/app/Views/erreur_500.php';
+}
 ```
 
 | Ligne | Ce qu'elle fait |
@@ -448,7 +482,8 @@ Router::traiter();
 | `require_once .../config/config.php` | Charge la configuration : clés Supabase + démarrage de la session. |
 | `require_once .../app/Core/autoload.php` | Active le chargement automatique des classes (voir 5.1). Sans lui, PHP ne saurait pas où trouver `Router`. |
 | `require_once .../app/routes.php` | Déclare toutes les adresses du site. |
-| `Router::traiter();` | Lance l'aiguillage : trouve la bonne fonction et l'exécute. |
+| `try { Router::traiter(); }` | Lance l'aiguillage : trouve la bonne fonction et l'exécute. `try` = « essaie, et si une erreur (**exception**) survient… ». |
+| `catch (Throwable $e) { ... }` | « …attrape-la ici » : au lieu d'une page blanche, on renvoie le code `500` (erreur serveur) et la page `erreur_500.php` avec le message. C'est là qu'arrivent les `SupabaseException` non traitées (voir 5.8). |
 
 L'ordre est important : `routes.php` utilise la classe `Router`, donc
 l'autoloader doit être actif avant.
@@ -483,6 +518,10 @@ interne. Cela protège la clé secrète de la base de données.
 $envLocalPhp = __DIR__ . '/env.local.php';
 $envPath = __DIR__ . '/../.env';
 
+if (!isset($env) || !is_array($env)) {
+    $env = [];
+}
+
 if (file_exists($envLocalPhp)) {
     require $envLocalPhp;
 } elseif (file_exists($envPath)) {
@@ -493,6 +532,7 @@ if (file_exists($envLocalPhp)) {
         }
         if (str_contains($ligne, '=')) {
             [$cle, $valeur] = explode('=', $ligne, 2);
+            $env[trim($cle)] = trim($valeur);
             putenv(trim($cle) . '=' . trim($valeur));
         }
     }
@@ -530,7 +570,7 @@ puis démarrer la session.
    ];
    ```
    Comme `config.php` est chargé au tout début du programme, `$env` devient une variable **globale**, que `SupabaseClient` relit ensuite avec `$GLOBALS['env']`.
-2. Sinon, si `.env` existe → on lit chaque ligne. `trim()` enlève les espaces au début et à la fin. Une ligne qui commence par `#` est un commentaire : `continue` = « passe à la ligne suivante ». Une ligne contenant `=` est découpée et enregistrée avec `putenv()` (variable d'environnement du système). **Attention** : voir le point 1 de la section 13, ce chemin ne fonctionne pas tel quel.
+2. Sinon, si `.env` existe → on lit chaque ligne. `trim()` enlève les espaces au début et à la fin. Une ligne qui commence par `#` est un commentaire : `continue` = « passe à la ligne suivante ». Une ligne contenant `=` est découpée puis enregistrée **deux fois** : dans le tableau `$env` (lu par `SupabaseClient`) et avec `putenv()` (variable d'environnement du système, lisible par `getenv()`). Le `$env = []` du début garantit que le tableau existe même si aucun fichier n'est trouvé.
 3. `session_status() === PHP_SESSION_NONE` = « si aucune session n'est encore ouverte » → `session_start()` l'ouvre. Sans cela, `$_SESSION` serait vide.
 4. `error_reporting(E_ALL)` + `display_errors = 1` : affiche **toutes** les erreurs à l'écran. Pratique pour développer, à désactiver sur un site public.
 
@@ -619,6 +659,14 @@ class Router
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $uri = rtrim($uri, '/') ?: '/';
 
+        // Tout formulaire POST doit porter le jeton CSRF de la session (voir Core/Csrf.php)
+        if ($methode === 'POST' && !Csrf::verifier()) {
+            http_response_code(403);
+            $motifRefus = 'Formulaire invalide ou expiré (jeton de sécurité manquant). Recharge la page et réessaie.';
+            require __DIR__ . '/../Views/erreur_403.php';
+            return;
+        }
+
         foreach (self::$routes as $route) {
             if ($route['methode'] !== $methode) {
                 continue;
@@ -673,6 +721,7 @@ Chaque route est une fiche à quatre cases : `methode` (`GET`/`POST`), `chemin`
 | `$methode = $_SERVER['REQUEST_METHOD'];` | `GET` ou `POST`. |
 | `$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);` | L'adresse demandée, sans la partie après `?` (`/equipes/3?x=1` → `/equipes/3`). |
 | `$uri = rtrim($uri, '/') ?: '/';` | `rtrim` enlève un éventuel `/` final (`/equipes/` → `/equipes`). Pour la page d'accueil `/`, il ne reste rien : l'opérateur `?:` remet alors `'/'`. |
+| `if ($methode === 'POST' && !Csrf::verifier())` | Pour tout envoi de formulaire, on vérifie le **jeton CSRF** (voir 5.6). S'il manque ou est faux : page 403 et on s'arrête. Aucun contrôleur n'a donc à y penser. |
 | `foreach (self::$routes as $route)` | On examine chaque route l'une après l'autre. |
 | `if ($route['methode'] !== $methode) continue;` | Mauvaise méthode (par exemple route `POST` mais requête `GET`) → on passe à la suivante. |
 | `$motif = preg_replace('#\{[a-zA-Z_]+\}#', '([^/]+)', $route['chemin']);` | Transforme le chemin en **motif de recherche** (expression régulière). Chaque `{quelquechose}` devient `([^/]+)`, qui signifie « une suite de caractères sans `/`, à capturer ». `/equipes/{id}` devient `/equipes/([^/]+)`. |
@@ -702,11 +751,47 @@ class Controller
         // Le layout inclut la navbar/footer et charge le contenu de la vue
         require __DIR__ . '/../Views/partials/layout.php';
     }
+
+    /** Redirige le navigateur vers une autre adresse et arrête le script (schéma Post/Redirect/Get) */
+    protected function rediriger(string $url): void
+    {
+        header('Location: ' . $url);
+        exit;
+    }
+
+    /** Affiche la page 404 et arrête le script */
+    protected function introuvable(): void
+    {
+        http_response_code(404);
+        require __DIR__ . '/../Views/erreur_404.php';
+        exit;
+    }
+
+    /** Lit un champ texte du formulaire POST (chaîne vide s'il est absent), sans espaces autour */
+    protected function champ(string $nom): string
+    {
+        return trim((string) ($_POST[$nom] ?? ''));
+    }
+
+    /** Lit un champ numérique du formulaire POST ; null si vide, absent ou non numérique */
+    protected function champEntier(string $nom): ?int
+    {
+        $valeur = $this->champ($nom);
+        return ($valeur === '' || !is_numeric($valeur)) ? null : (int) $valeur;
+    }
 }
 ```
 
 Tous les contrôleurs héritent de cette classe (`extends Controller`) et
-disposent donc de `afficher()`.
+disposent donc de ces cinq méthodes :
+
+| Méthode | À quoi ça sert |
+|---|---|
+| `afficher($vue, $donnees)` | Afficher une page complète (détail ci-dessous). |
+| `rediriger($url)` | Envoyer le navigateur ailleurs après un formulaire réussi. `exit` arrête le script : rien ne s'exécute après. |
+| `introuvable()` | Afficher la page 404 quand l'`id` demandé n'existe pas. |
+| `champ($nom)` | Lire un champ de formulaire proprement : jamais d'erreur si absent, espaces retirés. |
+| `champEntier($nom)` | Idem pour un nombre (un `id` de menu déroulant, un score) : `null` si vide ou non numérique. |
 
 #### `afficher(string $vue, array $donnees = []): void`
 
@@ -721,20 +806,34 @@ disposent donc de `afficher()`.
 `protected` : seule la classe et ses enfants (les contrôleurs) peuvent
 l'appeler ; on n'appelle jamais `afficher()` depuis l'extérieur.
 
-### 5.4 `Auth.php` — connexion et droits d'accès
+### 5.4 `Auth.php` — connexion, rôles et droits d'accès
 
 ```php
 class Auth
 {
+    public const ROLE_SUPER_ADMIN = 'super_admin';
+    public const ROLE_MANAGER     = 'manager';
+    public const ROLE_JOUEUR      = 'joueur';
+
+    /** Rôles proposés dans les formulaires d'administration : valeur => libellé */
+    public const ROLES = [
+        self::ROLE_JOUEUR      => 'Joueur',
+        self::ROLE_MANAGER     => 'Manager de ville',
+        self::ROLE_SUPER_ADMIN => 'Super administrateur',
+    ];
+
     public static function connecter(array $utilisateur): void
     {
+        // Nouvel identifiant de session à chaque connexion (protection contre la "fixation de session")
+        session_regenerate_id(true);
+
         // On ne stocke JAMAIS le mot de passe (même hashé) en session
         $_SESSION['utilisateur'] = [
-            'id'         => $utilisateur['id'],
+            'id'         => (int) $utilisateur['id'],
             'nom_compte' => $utilisateur['nom_compte'],
             'email'      => $utilisateur['email'],
             'role'       => $utilisateur['role'],
-            'ville_id'   => $utilisateur['ville_id'],
+            'ville_id'   => isset($utilisateur['ville_id']) ? (int) $utilisateur['ville_id'] : null,
         ];
     }
 
@@ -749,14 +848,51 @@ class Auth
         return isset($_SESSION['utilisateur']);
     }
 
-    public static function estAdmin(): bool
-    {
-        return self::estConnecte() && $_SESSION['utilisateur']['role'] === 'admin';
-    }
-
     public static function utilisateur(): ?array
     {
         return $_SESSION['utilisateur'] ?? null;
+    }
+
+    public static function role(): ?string
+    {
+        return $_SESSION['utilisateur']['role'] ?? null;
+    }
+
+    public static function estSuperAdmin(): bool
+    {
+        return in_array(self::role(), [self::ROLE_SUPER_ADMIN, 'admin'], true);
+    }
+
+    public static function estManager(): bool
+    {
+        return self::role() === self::ROLE_MANAGER;
+    }
+
+    /** A accès à l'espace d'administration (super admin OU manager) */
+    public static function estAdmin(): bool
+    {
+        return self::estSuperAdmin() || self::estManager();
+    }
+
+    /** Ville gérée par le manager connecté ; null pour un super admin (toutes) ou un joueur */
+    public static function villeGeree(): ?int
+    {
+        if (!self::estManager()) {
+            return null;
+        }
+        return $_SESSION['utilisateur']['ville_id'] ?? null;
+    }
+
+    /** Le compte connecté peut-il agir sur les équipes de cette ville ? */
+    public static function peutGererVille(?int $villeId): bool
+    {
+        if (self::estSuperAdmin()) {
+            return true;
+        }
+        if (self::estManager()) {
+            return $villeId !== null && self::villeGeree() === $villeId;
+        }
+        return false;
     }
 
     public static function exigerConnexion(): void
@@ -771,20 +907,63 @@ class Auth
     {
         self::exigerConnexion();
         if (!self::estAdmin()) {
-            http_response_code(403);
-            die('Accès refusé : réservé aux administrateurs.');
+            self::refuser('Cette page est réservée aux administrateurs et aux managers de ville.');
         }
+    }
+
+    public static function exigerSuperAdmin(): void
+    {
+        self::exigerConnexion();
+        if (!self::estSuperAdmin()) {
+            self::refuser('Cette page est réservée au super administrateur.');
+        }
+    }
+
+    public static function exigerManager(): void
+    {
+        self::exigerConnexion();
+        if (!self::estManager()) {
+            self::refuser('Cette page est réservée aux managers de ville.');
+        }
+    }
+
+    public static function exigerGestionVille(?int $villeId): void
+    {
+        self::exigerConnexion();
+        if (!self::peutGererVille($villeId)) {
+            self::refuser('Tu ne gères pas la ville de cette équipe.');
+        }
+    }
+
+    /** Affiche la page 403 et arrête le script */
+    private static function refuser(string $motif): void
+    {
+        http_response_code(403);
+        $motifRefus = $motif;
+        require __DIR__ . '/../Views/erreur_403.php';
+        exit;
     }
 }
 ```
 
 Toute la « mémoire » de la connexion tient dans `$_SESSION['utilisateur']`.
 
+#### Les constantes de rôle
+
+`public const ROLE_SUPER_ADMIN = 'super_admin';` : une **constante de classe**
+est une valeur fixe à laquelle on donne un nom. Écrire `Auth::ROLE_MANAGER`
+plutôt que `'manager'` évite les fautes de frappe : si on se trompe dans le nom
+de la constante, PHP signale une erreur, alors qu'une chaîne mal tapée passe
+inaperçue. `ROLES` associe chaque valeur en base à son libellé affiché dans les
+menus déroulants.
+
 #### `connecter(array $utilisateur): void`
 
 - **À quoi ça sert :** marquer la personne comme connectée.
 - **Ce qu'elle reçoit :** la fiche complète de l'utilisateur, telle que lue en base (avec son mot de passe haché).
-- **Comment ça marche :** recopie en session **seulement** cinq informations : `id`, `nom_compte`, `email`, `role`, `ville_id`. Le mot de passe (même haché) n'est jamais mis en session, par principe de sécurité.
+- **Comment ça marche :**
+  1. `session_regenerate_id(true)` : la session reçoit un **nouveau numéro** et l'ancien est détruit. Cela empêche l'attaque dite de « fixation de session », où un pirate impose à sa victime un numéro de session qu'il connaît.
+  2. Recopie en session **seulement** cinq informations : `id`, `nom_compte`, `email`, `role`, `ville_id`, converties en entiers quand il le faut (`(int)`). Le mot de passe (même haché) n'est jamais mis en session.
 
 #### `deconnecter(): void`
 
@@ -794,24 +973,36 @@ Toute la « mémoire » de la connexion tient dans `$_SESSION['utilisateur']`.
 
 - **Ce qu'elle renvoie :** `true` si la case `utilisateur` existe en session, `false` sinon. `isset()` veut dire « existe et n'est pas null ».
 
-#### `estAdmin(): bool`
+#### `utilisateur(): ?array` et `role(): ?string`
 
-- **Ce qu'elle renvoie :** `true` si connecté **et** si le rôle est exactement `'admin'`.
-- **Subtilité :** avec `&&`, PHP évalue la seconde condition seulement si la première est vraie. Si personne n'est connecté, on ne tente pas de lire `$_SESSION['utilisateur']['role']` (ce qui provoquerait une erreur).
+- **Ce qu'elles renvoient :** la fiche en session (ou `null` si personne n'est connecté, grâce à `??`), et le rôle seul.
 
-#### `utilisateur(): ?array`
+#### `estSuperAdmin()`, `estManager()`, `estAdmin()` : bool
 
-- **Ce qu'elle renvoie :** la fiche en session, ou `null` si personne n'est connecté (grâce à `??`).
+| Méthode | Vrai quand… |
+|---|---|
+| `estSuperAdmin()` | le rôle est `super_admin` **ou** l'ancien `admin` (`in_array` = « est dans cette liste » ; le `true` final exige une comparaison stricte). |
+| `estManager()` | le rôle est exactement `manager`. |
+| `estAdmin()` | l'un des deux : c'est le droit d'entrer dans l'espace d'administration (les pages Équipes sont partagées). |
+
+#### `villeGeree(): ?int` et `peutGererVille(?int $villeId): bool`
+
+- `villeGeree()` : l'`id` de la ville du manager connecté, `null` sinon.
+- `peutGererVille($villeId)` : la règle centrale des droits sur une équipe. Un super admin peut tout ; un manager seulement si `$villeId` est **sa** ville ; un joueur jamais.
 
 #### `exigerConnexion(): void`
 
 - **À quoi ça sert :** un « videur » à placer au début d'une page réservée aux connectés.
 - **Comment ça marche :** si non connecté, `header('Location: /login')` envoie au navigateur l'ordre d'aller sur `/login` (redirection), puis `exit` **arrête le programme**. Sans `exit`, PHP continuerait à produire la page protégée après l'entête de redirection.
 
-#### `exigerAdmin(): void`
+#### `exigerAdmin()`, `exigerSuperAdmin()`, `exigerManager()`, `exigerGestionVille($villeId)`
 
-- **À quoi ça sert :** videur pour les pages d'administration.
-- **Comment ça marche :** exige d'abord d'être connecté, puis, si le rôle n'est pas admin, envoie le code `403` (interdit) et `die()` (affiche le message et arrête tout).
+- **À quoi ça sert :** quatre videurs, un par niveau de droit. Chacun exige d'abord d'être connecté, puis vérifie le droit correspondant et, sinon, appelle `refuser()`.
+- `exigerGestionVille($villeId)` est utilisé par les pages d'équipe : on lit d'abord l'équipe, puis on vérifie que le compte connecté a le droit d'agir sur sa ville.
+
+#### `refuser(string $motif): void` (privée)
+
+- **Comment ça marche :** code HTTP `403` (interdit), affichage de la page `erreur_403.php` avec le motif, puis `exit`. Remplace l'ancien `die()` brut par une vraie page.
 
 ### 5.5 `SupabaseClient.php` — parler à la base de données
 
@@ -828,11 +1019,15 @@ class SupabaseClient
     private static function init(): void
     {
         if (self::$url === null) {
-            self::$url = rtrim((string) ($GLOBALS['env']['SUPABASE_URL'] ?? ''), '/');
-            self::$key = (string) ($GLOBALS['env']['SUPABASE_KEY'] ?? '');
+            // Source 1 : $env défini par config/env.local.php ; source 2 : variables d'environnement (.env)
+            $url = ($GLOBALS['env']['SUPABASE_URL'] ?? '') ?: (getenv('SUPABASE_URL') ?: '');
+            $key = ($GLOBALS['env']['SUPABASE_KEY'] ?? '') ?: (getenv('SUPABASE_KEY') ?: '');
+
+            self::$url = rtrim((string) $url, '/');
+            self::$key = (string) $key;
 
             if (self::$url === '' || self::$key === '') {
-                die('Erreur de connexion à la base de données : variables SUPABASE_URL / SUPABASE_KEY manquantes.');
+                throw new SupabaseException('Variables SUPABASE_URL / SUPABASE_KEY manquantes (voir config/config.php).');
             }
         }
     }
@@ -847,7 +1042,7 @@ contiendront l'adresse Supabase et la clé secrète après le premier appel à
 #### `init(): void` (privée)
 
 - **À quoi ça sert :** lire la configuration **une seule fois**, au premier besoin (on parle de chargement « paresseux »).
-- **Comment ça marche :** si `$url` est encore `null`, on lit `$GLOBALS['env']['SUPABASE_URL']` et `['SUPABASE_KEY']` (définis par `env.local.php`). `?? ''` donne une chaîne vide si absent ; `(string)` force le type texte ; `rtrim(..., '/')` enlève un `/` final éventuel. Si l'une des deux valeurs est vide, le programme s'arrête avec un message clair.
+- **Comment ça marche :** si `$url` est encore `null`, on lit `$GLOBALS['env']['SUPABASE_URL']` (défini par `env.local.php` ou `.env`) et, s'il est vide, on retombe sur `getenv('SUPABASE_URL')` (variable d'environnement). L'opérateur `?:` enchaîne ces sources : « la première valeur non vide ». `rtrim(..., '/')` enlève un `/` final éventuel. Si l'une des deux valeurs manque, on **lève une exception** `SupabaseException` (voir 5.8) : `index.php` l'attrape et affiche la page d'erreur.
 
 ```php
     private static function requete(string $method, string $path, ?array $body = null, string $prefer = ''): array
@@ -881,14 +1076,14 @@ contiendront l'adresse Supabase et la clé secrète après le premier appel à
         if ($reponse === false) {
             $erreur = curl_error($ch);
             curl_close($ch);
-            die('Erreur de connexion à la base de données : ' . $erreur);
+            throw new SupabaseException('Connexion à la base de données impossible : ' . $erreur);
         }
 
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($code >= 400) {
-            die('Erreur base de données (HTTP ' . $code . ') : ' . $reponse);
+            throw new SupabaseException(self::messageErreur($reponse, $code), $code);
         }
 
         if ($reponse === '' || $reponse === null) {
@@ -897,6 +1092,14 @@ contiendront l'adresse Supabase et la clé secrète après le premier appel à
 
         $donnees = json_decode($reponse, true);
         return is_array($donnees) ? $donnees : [];
+    }
+
+    /** Extrait un message lisible de la réponse d'erreur JSON de PostgREST */
+    private static function messageErreur(string $reponse, int $code): string
+    {
+        $json = json_decode($reponse, true);
+        $message = is_array($json) ? ($json['message'] ?? $json['details'] ?? $reponse) : $reponse;
+        return 'Erreur base de données (HTTP ' . $code . ') : ' . $message;
     }
 ```
 
@@ -920,10 +1123,10 @@ contiendront l'adresse Supabase et la clé secrète après le premier appel à
 | `curl_setopt_array($ch, [...])` | Règle plusieurs options d'un coup : la méthode HTTP, les en-têtes, `RETURNTRANSFER => true` (« rends-moi la réponse au lieu de l'afficher »), `TIMEOUT => 15` (abandonner après 15 secondes). |
 | `if ($body !== null) ... json_encode($body)` | S'il y a des données à envoyer, on les convertit en texte JSON et on les met dans le corps de la requête. |
 | `$reponse = curl_exec($ch);` | **Envoie** la requête et attend la réponse. |
-| `if ($reponse === false) { ... die(...) }` | Échec réseau (pas d'internet, adresse fausse…) : on affiche l'erreur et on arrête. |
-| `$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);` | Récupère le code de réponse (200, 404, 401…). |
+| `if ($reponse === false) { ... throw ... }` | Échec réseau (pas d'internet, adresse fausse…) : on **lève une exception** (voir 5.8) avec le message de cURL. |
+| `$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);` | Récupère le code de réponse (200, 404, 401, 409…). |
 | `curl_close($ch);` | Ferme le dossier. |
-| `if ($code >= 400) die(...)` | Les codes 400 et plus sont des erreurs (clé invalide, table inexistante…) : on affiche le message de Supabase et on arrête. |
+| `if ($code >= 400) throw ...` | Les codes 400 et plus sont des erreurs (clé invalide, table inexistante, contrainte violée…) : on lève une `SupabaseException` portant le message de Supabase et le code HTTP. `messageErreur()` extrait le texte lisible de la réponse JSON. |
 | `if ($reponse === '' ...) return [];` | Réponse vide (par exemple après un `DELETE`) → tableau vide. |
 | `$donnees = json_decode($reponse, true);` | Transforme le texte JSON en tableau PHP. Le `true` demande des tableaux (fiches) plutôt que des objets. |
 | `return is_array($donnees) ? $donnees : [];` | Sécurité : si le décodage a échoué, on renvoie un tableau vide. |
@@ -1026,6 +1229,149 @@ contiendront l'adresse Supabase et la clé secrète après le premier appel à
 
 - **À quoi ça sert :** appeler une fonction écrite directement dans la base de données (procédure stockée). Prévu pour l'avenir, **pas utilisé** actuellement.
 
+### 5.6 `Csrf.php` — le jeton de sécurité des formulaires
+
+```php
+class Csrf
+{
+    public static function jeton(): string
+    {
+        if (empty($_SESSION['csrf_jeton'])) {
+            $_SESSION['csrf_jeton'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_jeton'];
+    }
+
+    public static function champ(): string
+    {
+        return '<input type="hidden" name="csrf_jeton" value="' . htmlspecialchars(self::jeton()) . '">';
+    }
+
+    public static function verifier(): bool
+    {
+        $recu = $_POST['csrf_jeton'] ?? '';
+        return is_string($recu) && $recu !== '' && hash_equals(self::jeton(), $recu);
+    }
+}
+```
+
+**Le problème résolu (attaque CSRF) :** imagine qu'un admin soit connecté au
+site, puis visite une page piégée ailleurs sur le web. Cette page pourrait
+contenir un formulaire caché qui envoie `POST /admin/villes/4/supprimer` à
+notre site ; le navigateur joindrait le cookie de session, et la ville serait
+supprimée à l'insu de l'admin.
+
+**La parade :** chaque session possède un **jeton** secret (une longue chaîne
+aléatoire). Tous nos formulaires l'incluent dans un champ caché. La page piégée
+ne peut pas connaître ce jeton, donc sa requête est refusée.
+
+| Méthode | Rôle |
+|---|---|
+| `jeton()` | Renvoie le jeton de la session, en le créant au premier appel. `random_bytes(32)` = 32 octets aléatoires sûrs ; `bin2hex` les écrit en 64 caractères hexadécimaux. |
+| `champ()` | Le champ caché à insérer dans chaque formulaire : `<?= Csrf::champ() ?>`. |
+| `verifier()` | Compare le jeton reçu en POST avec celui de la session. `hash_equals` compare en temps constant (un attaquant ne peut pas deviner le jeton lettre par lettre en mesurant le temps de réponse). |
+
+La vérification est faite **une seule fois pour tout le site**, dans
+`Router::traiter()` (voir 5.2).
+
+### 5.7 `Flash.php` — les messages d'une page à l'autre
+
+```php
+class Flash
+{
+    public static function succes(string $message): void { self::ajouter('succes', $message); }
+    public static function erreur(string $message): void { self::ajouter('erreur', $message); }
+
+    private static function ajouter(string $type, string $message): void
+    {
+        $_SESSION['flash'][] = ['type' => $type, 'message' => $message];
+    }
+
+    /** Renvoie les messages en attente et les efface de la session */
+    public static function recuperer(): array
+    {
+        $messages = $_SESSION['flash'] ?? [];
+        unset($_SESSION['flash']);
+        return $messages;
+    }
+}
+```
+
+**Le problème résolu :** après un formulaire réussi, on **redirige** (schéma
+PRG). Mais la page suivante est une nouvelle requête : comment lui dire
+« Ville créée. » ? En laissant le message en session.
+
+- `succes()` / `erreur()` : rangent un message (avec son type) dans la liste `$_SESSION['flash']`.
+- `recuperer()` : renvoie la liste **et la vide** aussitôt. Le message n'apparaît donc qu'une fois. Appelée par `layout.php`, qui affiche chaque message dans un bandeau coloré (`.flash-succes` vert, `.flash-erreur` rouge).
+
+### 5.8 `SupabaseException.php` — l'erreur de base de données
+
+```php
+class SupabaseException extends RuntimeException
+{
+    private int $codeHttp;
+
+    public function __construct(string $message, int $codeHttp = 0)
+    {
+        parent::__construct($message);
+        $this->codeHttp = $codeHttp;
+    }
+
+    public function codeHttp(): int { return $this->codeHttp; }
+
+    /** true si la base a refusé à cause d'une contrainte (clé étrangère, unicité…) */
+    public function estConflit(): bool { return $this->codeHttp === 409; }
+}
+```
+
+**Ce qu'est une exception :** un signal d'erreur que l'on **lève** (`throw`) à
+l'endroit du problème, et que l'on **attrape** (`try { ... } catch (...) { ... }`)
+là où l'on sait quoi faire. Entre les deux, le programme remonte la pile des
+appels sans exécuter la suite. Avant, `SupabaseClient` faisait `die()` : page
+blanche avec un message brut. Maintenant :
+
+- un contrôleur d'administration peut attraper l'exception et afficher « Suppression refusée par la base de données » via `Flash::erreur()` ;
+- sinon, l'exception remonte jusqu'à `index.php` qui affiche `erreur_500.php`.
+
+`extends RuntimeException` : notre classe hérite d'une exception standard de
+PHP. `parent::__construct($message)` appelle le constructeur du parent pour
+enregistrer le message. `codeHttp` garde le code renvoyé par Supabase (`409` =
+conflit, typiquement une clé étrangère ou un email en doublon).
+
+### 5.9 `Format.php` — mettre en forme les dates
+
+```php
+class Format
+{
+    public static function dateHeure(?string $valeur, string $format = 'd/m/Y H:i'): string
+    {
+        if (!$valeur) {
+            return '—';
+        }
+        try {
+            return (new DateTime($valeur))->format($format);
+        } catch (Exception $e) {
+            return $valeur;
+        }
+    }
+
+    public static function dateHeureLocal(?string $valeur): string
+    {
+        if (!$valeur) {
+            return '';
+        }
+        try {
+            return (new DateTime($valeur))->format('Y-m-d\TH:i');
+        } catch (Exception $e) {
+            return '';
+        }
+    }
+}
+```
+
+- `dateHeure()` : transforme la date brute de la base (`2026-09-20T15:00:00`) en « 20/09/2026 15:00 », ou renvoie un tiret si elle est vide. Le `try/catch` évite qu'une date mal formée ne fasse planter la page.
+- `dateHeureLocal()` : format exigé par un champ `<input type="datetime-local">` (`2026-09-20T15:00`), utilisé par le formulaire de modification d'une épreuve.
+
 ---
 
 ## 6. Les routes — `app/routes.php`
@@ -1052,16 +1398,25 @@ Router::get('/equipes/{id}', EquipeController::class, 'detail');
 
 Router::get('/classement', ClassementController::class, 'index');
 
+// Espace manager de ville
+Router::get('/gestion', ManagerController::class, 'index');
+
+// Administration (super admin) — tableau de bord, villes, sports
 Router::get('/admin', AdminController::class, 'tableauDeBord');
-Router::get('/admin/villes/nouvelle', AdminController::class, 'nouvelleVille');
+Router::get('/admin/villes', AdminController::class, 'villes');
 Router::post('/admin/villes', AdminController::class, 'creerVille');
+Router::get('/admin/villes/{id}/modifier', AdminController::class, 'modifierVille');
+Router::post('/admin/villes/{id}/modifier', AdminController::class, 'enregistrerVille');
 Router::post('/admin/villes/{id}/supprimer', AdminController::class, 'supprimerVille');
+// … même schéma pour /admin/sports, /admin/utilisateurs, /admin/epreuves, /admin/equipes
 ```
 
 Lecture d'une ligne : `Router::get('/equipes/{id}', EquipeController::class, 'detail');`
 = « quand quelqu'un demande en `GET` une adresse de la forme `/equipes/quelque-chose`,
 appelle la méthode `detail` de la classe `EquipeController` en lui donnant ce
 quelque-chose ».
+
+### 6.1 Routes publiques et compte
 
 | Méthode | Adresse | Classe | Méthode appelée | Accès |
 |---|---|---|---|---|
@@ -1077,15 +1432,58 @@ quelque-chose ».
 | GET | `/equipes` | `EquipeController` | `liste` | Tous |
 | GET | `/equipes/{id}` | `EquipeController` | `detail` | Tous |
 | GET | `/classement` | `ClassementController` | `index` | Tous |
-| GET | `/admin` | `AdminController` | `tableauDeBord` | Admin |
-| GET | `/admin/villes/nouvelle` | `AdminController` | `nouvelleVille` | Admin |
-| POST | `/admin/villes` | `AdminController` | `creerVille` | Admin |
-| POST | `/admin/villes/{id}/supprimer` | `AdminController` | `supprimerVille` | Admin |
+| GET | `/gestion` | `ManagerController` | `index` | Manager |
+
+### 6.2 Routes d'administration (super admin)
+
+| Méthode | Adresse | Classe | Méthode appelée | Action |
+|---|---|---|---|---|
+| GET | `/admin` | `AdminController` | `tableauDeBord` | Tableau de bord |
+| GET | `/admin/villes` | `AdminController` | `villes` | Liste + formulaire de création |
+| POST | `/admin/villes` | `AdminController` | `creerVille` | Créer |
+| GET | `/admin/villes/{id}/modifier` | `AdminController` | `modifierVille` | Formulaire de renommage |
+| POST | `/admin/villes/{id}/modifier` | `AdminController` | `enregistrerVille` | Enregistrer le renommage |
+| POST | `/admin/villes/{id}/supprimer` | `AdminController` | `supprimerVille` | Supprimer |
+| GET | `/admin/sports` | `AdminController` | `sports` | Liste + création |
+| POST | `/admin/sports` | `AdminController` | `creerSport` | Créer |
+| GET | `/admin/sports/{id}/modifier` | `AdminController` | `modifierSport` | Formulaire |
+| POST | `/admin/sports/{id}/modifier` | `AdminController` | `enregistrerSport` | Enregistrer |
+| POST | `/admin/sports/{id}/supprimer` | `AdminController` | `supprimerSport` | Supprimer |
+| GET | `/admin/utilisateurs` | `AdminUtilisateurController` | `liste` | Liste + création (joueur, manager, super admin) |
+| POST | `/admin/utilisateurs` | `AdminUtilisateurController` | `creer` | Créer un compte |
+| GET | `/admin/utilisateurs/{id}/modifier` | `AdminUtilisateurController` | `modifier` | Formulaire |
+| POST | `/admin/utilisateurs/{id}/modifier` | `AdminUtilisateurController` | `enregistrer` | Enregistrer (rôle, ville, mot de passe…) |
+| POST | `/admin/utilisateurs/{id}/supprimer` | `AdminUtilisateurController` | `supprimer` | Supprimer |
+| GET | `/admin/epreuves` | `AdminEpreuveController` | `liste` | Liste + création |
+| POST | `/admin/epreuves` | `AdminEpreuveController` | `creer` | Créer |
+| GET | `/admin/epreuves/{id}/modifier` | `AdminEpreuveController` | `modifier` | Formulaire |
+| POST | `/admin/epreuves/{id}/modifier` | `AdminEpreuveController` | `enregistrer` | Enregistrer |
+| POST | `/admin/epreuves/{id}/statut` | `AdminEpreuveController` | `changerStatut` | À venir → en cours → terminée |
+| POST | `/admin/epreuves/{id}/supprimer` | `AdminEpreuveController` | `supprimer` | Supprimer (et ses participations) |
+| GET | `/admin/epreuves/{id}/participations` | `AdminEpreuveController` | `participations` | Équipes inscrites, résultats |
+| POST | `/admin/epreuves/{id}/participations` | `AdminEpreuveController` | `inscrire` | Inscrire une équipe |
+| POST | `/admin/epreuves/{id}/participations/resultat` | `AdminEpreuveController` | `resultat` | Saisir score et rang |
+| POST | `/admin/epreuves/{id}/participations/valider` | `AdminEpreuveController` | `validerParticipation` | Valider une inscription en attente |
+| POST | `/admin/epreuves/{id}/participations/retirer` | `AdminEpreuveController` | `retirerParticipation` | Retirer une équipe |
+
+### 6.3 Routes des équipes (super admin **et** manager, chacun sur sa ville)
+
+| Méthode | Adresse | Méthode de `AdminEquipeController` | Action |
+|---|---|---|---|
+| GET | `/admin/equipes` | `liste` | Liste + création (le manager ne voit que sa ville) |
+| POST | `/admin/equipes` | `creer` | Créer (ville imposée pour un manager) |
+| GET | `/admin/equipes/{id}` | `membres` | Membres, ajout, inscriptions aux épreuves |
+| POST | `/admin/equipes/{id}/supprimer` | `supprimer` | Supprimer (membres et inscriptions compris) |
+| POST | `/admin/equipes/{id}/membres` | `ajouterMembre` | Ajouter un compte à l'équipe |
+| POST | `/admin/equipes/{id}/membres/modifier` | `modifierMembre` | Rôle interne, pénalité, récompense |
+| POST | `/admin/equipes/{id}/membres/retirer` | `retirerMembre` | Retirer un membre |
+| POST | `/admin/equipes/{id}/inscriptions` | `inscrireEpreuve` | Inscrire l'équipe à une épreuve à venir |
+| POST | `/admin/equipes/{id}/inscriptions/retirer` | `retirerInscription` | Annuler une inscription |
 
 **Pourquoi deux routes `/login` ?** La version `GET` **affiche** le formulaire ;
 la version `POST` **traite** ce que l'utilisateur a saisi. C'est un schéma
 classique : afficher en GET, traiter en POST, puis rediriger (voir « PRG » dans
-le glossaire).
+le glossaire). Toutes les routes `POST` passent par le contrôle CSRF du routeur.
 
 ---
 
@@ -1143,7 +1541,7 @@ class Ville
 | `toutes()` | Lister toutes les villes | rien | liste de fiches `['id', 'nom']` | Lit la table `ville`, toutes colonnes, sans filtre, triée par nom croissant. |
 | `trouver($id)` | Trouver une ville précise | l'identifiant | la fiche ou `null` | Filtre `id = $id` puis prend la première ligne. |
 | `creer($nom)` | Ajouter une ville | le nom | le nouvel `id` (entier) | Insère `['nom' => $nom]`. Supabase renvoie la ligne créée ; on en extrait l'`id` et on le convertit en entier avec `(int)`. |
-| `modifier($id, $nom)` | Renommer | l'identifiant, le nouveau nom | rien | Modifie la ligne `id = $id`. (Prévue mais pas encore utilisée par une page.) |
+| `modifier($id, $nom)` | Renommer | l'identifiant, le nouveau nom | rien | Modifie la ligne `id = $id`. Utilisée par le formulaire « Modifier la ville ». |
 | `supprimer($id)` | Supprimer | l'identifiant | rien | Supprime la ligne `id = $id`. |
 
 ### 7.2 `Sport.php` — table `sport` (colonnes : `id`, `nom`, `description`)
@@ -1168,6 +1566,11 @@ class Sport
         return (int) $ligne['id'];
     }
 
+    public static function modifier(int $id, string $nom, ?string $description): void
+    {
+        SupabaseClient::update('sport', ['id' => 'eq.' . $id], ['nom' => $nom, 'description' => $description]);
+    }
+
     public static function supprimer(int $id): void
     {
         SupabaseClient::delete('sport', ['id' => 'eq.' . $id]);
@@ -1180,13 +1583,24 @@ class Sport
 | `tous()` | Lister les sports | rien | liste de fiches | Comme `Ville::toutes()`, sur la table `sport`. |
 | `trouver($id)` | Trouver un sport | l'identifiant | fiche ou `null` | Idem `Ville::trouver`. |
 | `creer($nom, $description)` | Ajouter un sport | nom, description (peut être `null`) | nouvel `id` | Insère les deux colonnes. |
-| `supprimer($id)` | Supprimer | l'identifiant | rien | |
+| `modifier($id, $nom, $description)` | Renommer / changer la description | id, nom, description | rien | Met à jour les deux colonnes. |
+| `supprimer($id)` | Supprimer | l'identifiant | rien | Refusé par le contrôleur si des équipes ou des épreuves utilisent ce sport. |
 
 ### 7.3 `Utilisateur.php` — table `utilisateur` (colonnes : `id`, `email`, `nom_compte`, `role`, `ville_id`, `mot_de_passe`)
 
 ```php
 class Utilisateur
 {
+    /** Colonnes renvoyées aux pages d'administration : jamais le hash du mot de passe */
+    private const COLONNES_PUBLIQUES = 'id,email,nom_compte,role,ville_id,ville:ville_id(nom)';
+
+    private static function aplatir(array $ligne): array
+    {
+        $ligne['ville_nom'] = $ligne['ville']['nom'] ?? null;
+        unset($ligne['ville']);
+        return $ligne;
+    }
+
     public static function trouverParEmail(string $email): ?array
     {
         $resultats = SupabaseClient::select('utilisateur', '*', ['email' => 'eq.' . $email]);
@@ -1197,6 +1611,28 @@ class Utilisateur
     {
         $resultats = SupabaseClient::select('utilisateur', '*', ['id' => 'eq.' . $id]);
         return $resultats[0] ?? null;
+    }
+
+    public static function tous(): array
+    {
+        $lignes = SupabaseClient::select('utilisateur', self::COLONNES_PUBLIQUES, [], 'nom_compte.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
+    }
+
+    public static function parRole(string $role): array
+    {
+        $lignes = SupabaseClient::select('utilisateur', self::COLONNES_PUBLIQUES, ['role' => 'eq.' . $role], 'nom_compte.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
+    }
+
+    public static function parVille(int $villeId, bool $inclureSansVille = false): array
+    {
+        $filtres = $inclureSansVille
+            ? ['or' => '(ville_id.eq.' . $villeId . ',ville_id.is.null)']
+            : ['ville_id' => 'eq.' . $villeId];
+
+        $lignes = SupabaseClient::select('utilisateur', self::COLONNES_PUBLIQUES, $filtres, 'nom_compte.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function creer(string $nomCompte, string $email, string $motDePasseClair, string $role = 'joueur', ?int $villeId = null): int
@@ -1212,6 +1648,23 @@ class Utilisateur
         return (int) $ligne['id'];
     }
 
+    public static function modifier(int $id, array $donnees): void
+    {
+        SupabaseClient::update('utilisateur', ['id' => 'eq.' . $id], $donnees);
+    }
+
+    public static function changerMotDePasse(int $id, string $motDePasseClair): void
+    {
+        SupabaseClient::update('utilisateur', ['id' => 'eq.' . $id], [
+            'mot_de_passe' => password_hash($motDePasseClair, PASSWORD_DEFAULT),
+        ]);
+    }
+
+    public static function supprimer(int $id): void
+    {
+        SupabaseClient::delete('utilisateur', ['id' => 'eq.' . $id]);
+    }
+
     public static function verifierIdentifiants(string $email, string $motDePasseClair): ?array
     {
         $utilisateur = self::trouverParEmail($email);
@@ -1223,14 +1676,35 @@ class Utilisateur
 }
 ```
 
+#### La constante `COLONNES_PUBLIQUES`
+
+Les pages d'administration listent les comptes. Elles n'ont **jamais** besoin
+du hash du mot de passe : on demande donc explicitement les colonnes utiles
+(`id,email,nom_compte,role,ville_id`) plus l'embed du nom de ville, au lieu de
+`*`. Moins on fait circuler de données sensibles, mieux c'est.
+
 #### `trouverParEmail(string $email): ?array`
 
 - **À quoi ça sert :** retrouver un compte à partir de son email (unique dans la base).
-- **Renvoie :** la fiche complète (y compris le mot de passe haché) ou `null`.
+- **Renvoie :** la fiche complète (y compris le mot de passe haché, nécessaire pour vérifier une connexion) ou `null`.
 
 #### `trouver(int $id): ?array`
 
 - Même chose par identifiant.
+
+#### `tous()`, `parRole(string $role)`, `parVille(int $villeId, bool $inclureSansVille = false)` : array
+
+| Méthode | À quoi ça sert | Comment |
+|---|---|---|
+| `tous()` | La liste des comptes pour la page Utilisateurs. | Colonnes publiques + `ville_nom`, tri par nom de compte. |
+| `parRole($role)` | Par exemple tous les managers, affichés sur le tableau de bord. | Filtre `role = ...`. |
+| `parVille($villeId, $inclureSansVille)` | Les comptes d'une ville : sert au manager pour recruter, et au super admin pour refuser la suppression d'une ville encore utilisée. | Avec `$inclureSansVille = true`, le filtre devient `or=(ville_id.eq.5,ville_id.is.null)` : « ville 5 **ou** pas de ville ». Un joueur inscrit sans choisir de ville reste recrutable. |
+
+#### `modifier(int $id, array $donnees)`, `changerMotDePasse(int $id, string $clair)`, `supprimer(int $id)` : void
+
+- `modifier()` reçoit une fiche des colonnes à changer (`nom_compte`, `email`, `role`, `ville_id`) : une seule méthode pour tous les cas.
+- `changerMotDePasse()` hache le nouveau mot de passe avant de l'enregistrer : le clair ne touche jamais la base.
+- `supprimer()` efface le compte. Le contrôleur retire d'abord la personne de ses équipes (`MembreEquipe::retirerUtilisateurPartout`).
 
 #### `creer(string $nomCompte, string $email, string $motDePasseClair, string $role = 'joueur', ?int $villeId = null): int`
 
@@ -1256,6 +1730,8 @@ class Utilisateur
 ```php
 class Equipe
 {
+    private const EMBED = '*,ville:ville_id(nom),sport:sport_id(nom)';
+
     private static function aplatir(array $ligne): array
     {
         $ligne['ville_nom'] = $ligne['ville']['nom'] ?? null;
@@ -1266,28 +1742,26 @@ class Equipe
 
     public static function toutes(): array
     {
-        $lignes = SupabaseClient::select(
-            'equipe',
-            '*,ville:ville_id(nom),sport:sport_id(nom)',
-            [],
-            'nom.asc'
-        );
+        $lignes = SupabaseClient::select('equipe', self::EMBED, [], 'nom.asc');
         return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function trouver(int $id): ?array
     {
-        $resultats = SupabaseClient::select(
-            'equipe',
-            '*,ville:ville_id(nom),sport:sport_id(nom)',
-            ['id' => 'eq.' . $id]
-        );
+        $resultats = SupabaseClient::select('equipe', self::EMBED, ['id' => 'eq.' . $id]);
         return isset($resultats[0]) ? self::aplatir($resultats[0]) : null;
     }
 
     public static function parVille(int $villeId): array
     {
-        return SupabaseClient::select('equipe', '*', ['ville_id' => 'eq.' . $villeId], 'nom.asc');
+        $lignes = SupabaseClient::select('equipe', self::EMBED, ['ville_id' => 'eq.' . $villeId], 'nom.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
+    }
+
+    public static function parSport(int $sportId): array
+    {
+        $lignes = SupabaseClient::select('equipe', self::EMBED, ['sport_id' => 'eq.' . $sportId], 'nom.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function creer(string $nom, int $villeId, int $sportId): int
@@ -1298,12 +1772,21 @@ class Equipe
         return (int) $ligne['id'];
     }
 
+    public static function modifier(int $id, string $nom, int $villeId, int $sportId): void
+    {
+        SupabaseClient::update('equipe', ['id' => 'eq.' . $id], [
+            'nom' => $nom, 'ville_id' => $villeId, 'sport_id' => $sportId,
+        ]);
+    }
+
     public static function supprimer(int $id): void
     {
         SupabaseClient::delete('equipe', ['id' => 'eq.' . $id]);
     }
 }
 ```
+
+La constante `EMBED` évite de répéter quatre fois la même chaîne d'embed.
 
 #### `aplatir(array $ligne): array` (privée)
 
@@ -1321,13 +1804,13 @@ class Equipe
 
 - Même embed, filtre sur l'`id`. `isset($resultats[0]) ? self::aplatir(...) : null` : si une ligne existe, on l'aplatit, sinon `null`.
 
-#### `parVille(int $villeId): array`
+#### `parVille(int $villeId): array` et `parSport(int $sportId): array`
 
-- **À quoi ça sert :** les équipes d'une ville donnée (sans embed). Prévue, pas encore utilisée.
+- **À quoi ça sert :** les équipes d'une ville (l'espace du manager n'affiche que celles-là) ou d'un sport (pour refuser la suppression d'un sport encore utilisé). Même embed et même aplatissement que `toutes()`.
 
-#### `creer(string $nom, int $villeId, int $sportId): int` et `supprimer(int $id): void`
+#### `creer(...)`, `modifier(...)`, `supprimer(int $id)`
 
-- Création et suppression, sur le même modèle que `Ville`.
+- Création, modification des trois colonnes et suppression, sur le même modèle que `Ville`. Avant `supprimer()`, le contrôleur vide le roster et les inscriptions de l'équipe.
 
 ### 7.5 `Epreuve.php` — table `epreuve` (colonnes : `id`, `sport_id`, `ville_id`, `date_heure`, `statut`)
 
@@ -1337,6 +1820,15 @@ date. Son `statut` vaut `a_venir`, `en_cours` ou `terminee`.
 ```php
 class Epreuve
 {
+    /** Statuts possibles : valeur en base => libellé affiché */
+    public const STATUTS = [
+        'a_venir'  => 'À venir',
+        'en_cours' => 'En cours',
+        'terminee' => 'Terminée',
+    ];
+
+    private const EMBED = '*,sport:sport_id(nom),ville:ville_id(nom)';
+
     private static function aplatir(array $ligne): array
     {
         $ligne['sport_nom'] = $ligne['sport']['nom'] ?? null;
@@ -1347,35 +1839,29 @@ class Epreuve
 
     public static function toutes(): array
     {
-        $lignes = SupabaseClient::select(
-            'epreuve',
-            '*,sport:sport_id(nom),ville:ville_id(nom)',
-            [],
-            'date_heure.desc'
-        );
+        $lignes = SupabaseClient::select('epreuve', self::EMBED, [], 'date_heure.desc');
         return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function trouver(int $id): ?array
     {
-        $resultats = SupabaseClient::select(
-            'epreuve',
-            '*,sport:sport_id(nom),ville:ville_id(nom)',
-            ['id' => 'eq.' . $id]
-        );
+        $resultats = SupabaseClient::select('epreuve', self::EMBED, ['id' => 'eq.' . $id]);
         return isset($resultats[0]) ? self::aplatir($resultats[0]) : null;
     }
 
     public static function aVenir(): array
     {
-        $lignes = SupabaseClient::select(
-            'epreuve',
-            '*,sport:sport_id(nom),ville:ville_id(nom)',
-            ['statut' => 'eq.a_venir'],
-            'date_heure.asc'
-        );
+        return self::parStatut('a_venir', 'date_heure.asc');
+    }
+
+    public static function parStatut(string $statut, string $ordre = 'date_heure.asc'): array
+    {
+        $lignes = SupabaseClient::select('epreuve', self::EMBED, ['statut' => 'eq.' . $statut], $ordre);
         return array_map([self::class, 'aplatir'], $lignes);
     }
+
+    public static function parVille(int $villeId): array { /* filtre ville_id, tri date desc */ }
+    public static function parSport(int $sportId): array { /* filtre sport_id, tri date desc */ }
 
     public static function creer(int $sportId, int $villeId, ?string $dateHeure, string $statut = 'a_venir'): int
     {
@@ -1384,6 +1870,14 @@ class Epreuve
             'date_heure' => $dateHeure, 'statut' => $statut,
         ]);
         return (int) $ligne['id'];
+    }
+
+    public static function modifier(int $id, int $sportId, int $villeId, ?string $dateHeure, string $statut): void
+    {
+        SupabaseClient::update('epreuve', ['id' => 'eq.' . $id], [
+            'sport_id' => $sportId, 'ville_id' => $villeId,
+            'date_heure' => $dateHeure, 'statut' => $statut,
+        ]);
     }
 
     public static function changerStatut(int $id, string $statut): void
@@ -1398,15 +1892,22 @@ class Epreuve
 }
 ```
 
+(`parVille` et `parSport` sont abrégées ici : elles suivent exactement le
+modèle de `parStatut`.)
+
 | Méthode | À quoi ça sert | Reçoit | Renvoie | Comment |
 |---|---|---|---|---|
+| `STATUTS` (constante) | La liste des statuts et leurs libellés | | | Sert aux menus déroulants et à vérifier qu'un statut reçu en POST est connu (`isset(Epreuve::STATUTS[$statut])`). |
 | `aplatir($ligne)` | Simplifier une ligne | une ligne avec sous-fiches | la ligne aplatie | Identique à `Equipe::aplatir`. |
-| `toutes()` | Toutes les épreuves pour le planning | rien | liste aplatie | Embed sport + ville, tri par date **décroissante** (les plus récentes en premier). |
+| `toutes()` | Toutes les épreuves pour le planning et l'administration | rien | liste aplatie | Embed sport + ville, tri par date **décroissante** (les plus récentes en premier). |
 | `trouver($id)` | Une épreuve | l'identifiant | fiche ou `null` | |
-| `aVenir()` | Les épreuves à venir pour l'accueil | rien | liste aplatie | Filtre `statut = a_venir`, tri par date **croissante** (la prochaine en premier). |
-| `creer($sportId, $villeId, $dateHeure, $statut)` | Créer une épreuve | ids du sport et de la ville, date (peut être `null`), statut (`a_venir` par défaut) | nouvel `id` | Pas encore utilisée par une page. |
-| `changerStatut($id, $statut)` | Passer une épreuve « en cours » ou « terminée » | id, nouveau statut | rien | Pas encore utilisée. |
-| `supprimer($id)` | Supprimer | id | rien | Pas encore utilisée. |
+| `aVenir()` | Les épreuves à venir (accueil, inscriptions) | rien | liste aplatie | Raccourci de `parStatut('a_venir')`, tri par date **croissante**. |
+| `parStatut($statut, $ordre)` | Les épreuves d'un statut donné (ex. « en cours » sur le tableau de bord) | statut, tri | liste aplatie | Filtre `statut = ...`. |
+| `parVille($villeId)`, `parSport($sportId)` | Vérifier avant de supprimer une ville ou un sport | id | liste aplatie | |
+| `creer($sportId, $villeId, $dateHeure, $statut)` | Créer une épreuve | ids du sport et de la ville, date (peut être `null`), statut (`a_venir` par défaut) | nouvel `id` | Formulaire de la page Épreuves. |
+| `modifier($id, ...)` | Modifier les quatre colonnes | id + mêmes champs | rien | Formulaire « Modifier l'épreuve ». |
+| `changerStatut($id, $statut)` | Passer une épreuve « en cours » ou « terminée » | id, nouveau statut | rien | Menu rapide dans la liste. |
+| `supprimer($id)` | Supprimer | id | rien | Le contrôleur supprime d'abord ses participations. |
 
 ### 7.6 `MembreEquipe.php` — table `membre_equipe` (colonnes : `equipe_id`, `utilisateur_id`, `role_interne`, `penalite`, `recompense`)
 
@@ -1468,7 +1969,6 @@ class MembreEquipe
             $ligne['equipe_nom'] = $ligne['equipe']['nom'] ?? null;
             $ligne['ville_nom']  = $ligne['equipe']['ville']['nom'] ?? null;
             $ligne['sport_nom']  = $ligne['equipe']['sport']['nom'] ?? null;
-            $ligne['equipe_id']  = $ligne['equipe_id'] ?? null;
             unset($ligne['equipe']);
             return $ligne;
         }, $lignes);
@@ -1478,9 +1978,22 @@ class MembreEquipe
 #### `parUtilisateur(int $utilisateurId): array`
 
 - **À quoi ça sert :** les équipes dont une personne fait partie (page « Mon profil »).
-- **Comment ça marche :** l'embed est **imbriqué** sur deux niveaux : `equipe:equipe_id(nom, ville:ville_id(nom), sport:sport_id(nom))` = « va chercher l'équipe, et dans l'équipe va chercher sa ville et son sport ». La réponse ressemble à `['equipe' => ['nom' => 'Les Dodos', 'ville' => ['nom' => 'Saint-Denis'], 'sport' => ['nom' => 'Football']]]`. La fonction anonyme remonte tout au premier niveau (`equipe_nom`, `ville_nom`, `sport_nom`). La ligne `$ligne['equipe_id'] = $ligne['equipe_id'] ?? null;` ne change rien (voir section 13).
+- **Comment ça marche :** l'embed est **imbriqué** sur deux niveaux : `equipe:equipe_id(nom, ville:ville_id(nom), sport:sport_id(nom))` = « va chercher l'équipe, et dans l'équipe va chercher sa ville et son sport ». La réponse ressemble à `['equipe' => ['nom' => 'Les Dodos', 'ville' => ['nom' => 'Saint-Denis'], 'sport' => ['nom' => 'Football']]]`. La fonction anonyme remonte tout au premier niveau (`equipe_nom`, `ville_nom`, `sport_nom`).
 
 ```php
+    public const ROLES = [
+        'joueur'    => 'Joueur',
+        'capitaine' => 'Capitaine',
+    ];
+
+    public static function estMembre(int $equipeId, int $utilisateurId): bool
+    {
+        $lignes = SupabaseClient::select('membre_equipe', 'equipe_id', [
+            'equipe_id' => 'eq.' . $equipeId, 'utilisateur_id' => 'eq.' . $utilisateurId,
+        ]);
+        return $lignes !== [];
+    }
+
     public static function ajouter(int $equipeId, int $utilisateurId, string $roleInterne = 'joueur'): void
     {
         SupabaseClient::insert('membre_equipe', [
@@ -1488,22 +2001,28 @@ class MembreEquipe
         ]);
     }
 
-    public static function definirPenalite(int $equipeId, int $utilisateurId, ?string $penalite): void
+    public static function modifier(int $equipeId, int $utilisateurId, array $donnees): void
     {
         SupabaseClient::update(
             'membre_equipe',
             ['equipe_id' => 'eq.' . $equipeId, 'utilisateur_id' => 'eq.' . $utilisateurId],
-            ['penalite' => $penalite]
+            $donnees
         );
+    }
+
+    public static function definirRole(int $equipeId, int $utilisateurId, string $roleInterne): void
+    {
+        self::modifier($equipeId, $utilisateurId, ['role_interne' => $roleInterne]);
+    }
+
+    public static function definirPenalite(int $equipeId, int $utilisateurId, ?string $penalite): void
+    {
+        self::modifier($equipeId, $utilisateurId, ['penalite' => $penalite]);
     }
 
     public static function definirRecompense(int $equipeId, int $utilisateurId, ?string $recompense): void
     {
-        SupabaseClient::update(
-            'membre_equipe',
-            ['equipe_id' => 'eq.' . $equipeId, 'utilisateur_id' => 'eq.' . $utilisateurId],
-            ['recompense' => $recompense]
-        );
+        self::modifier($equipeId, $utilisateurId, ['recompense' => $recompense]);
     }
 
     public static function retirer(int $equipeId, int $utilisateurId): void
@@ -1512,18 +2031,29 @@ class MembreEquipe
             'equipe_id' => 'eq.' . $equipeId, 'utilisateur_id' => 'eq.' . $utilisateurId,
         ]);
     }
+
+    public static function retirerTous(int $equipeId): void
+    {
+        SupabaseClient::delete('membre_equipe', ['equipe_id' => 'eq.' . $equipeId]);
+    }
+
+    public static function retirerUtilisateurPartout(int $utilisateurId): void
+    {
+        SupabaseClient::delete('membre_equipe', ['utilisateur_id' => 'eq.' . $utilisateurId]);
+    }
 }
 ```
 
 | Méthode | À quoi ça sert | Reçoit | Comment |
 |---|---|---|---|
+| `ROLES` (constante) | Les rôles internes et leurs libellés | | Menu déroulant « Rôle dans l'équipe » et vérification des valeurs reçues. |
+| `estMembre($equipeId, $utilisateurId)` | Savoir si une personne est déjà dans l'équipe | les deux ids | `select` d'une seule colonne avec les deux filtres ; vrai si la liste n'est pas vide. Évite un doublon. |
 | `ajouter($equipeId, $utilisateurId, $roleInterne)` | Mettre une personne dans une équipe | ids de l'équipe et de la personne, rôle (`joueur` par défaut) | Insère une ligne d'association. |
-| `definirPenalite(...)` | Noter une pénalité pour un membre | ids + texte de la pénalité (ou `null` pour effacer) | Modifie la ligne identifiée par les **deux** ids (il faut les deux filtres pour viser une seule ligne). |
-| `definirRecompense(...)` | Noter une récompense | idem | Idem sur la colonne `recompense`. |
+| `modifier($equipeId, $utilisateurId, $donnees)` | Changer rôle, pénalité et/ou récompense en une fois | les deux ids + fiche des colonnes | Modifie la ligne identifiée par les **deux** ids (il faut les deux filtres pour viser une seule ligne). |
+| `definirRole`, `definirPenalite`, `definirRecompense` | Raccourcis pour une seule colonne | ids + valeur | Appellent `modifier()`. |
 | `retirer($equipeId, $utilisateurId)` | Enlever une personne d'une équipe | les deux ids | Supprime la ligne d'association. |
-
-Ces quatre méthodes sont prévues pour la future administration des équipes ;
-aucune page ne les appelle encore.
+| `retirerTous($equipeId)` | Vider le roster | id de l'équipe | Appelé avant de supprimer une équipe. |
+| `retirerUtilisateurPartout($utilisateurId)` | Sortir une personne de toutes ses équipes | id du compte | Appelé avant de supprimer un compte. |
 
 ### 7.7 `Participation.php` — table `participation` (colonnes : `epreuve_id`, `equipe_id`, `statut`, `score`, `classement`)
 
@@ -1534,6 +2064,11 @@ son `score` et son `classement` (rang). `statut` vaut `en_attente` ou `validee`.
 ```php
 class Participation
 {
+    public const STATUTS = [
+        'en_attente' => 'En attente',
+        'validee'    => 'Validée',
+    ];
+
     public static function parEpreuve(int $epreuveId): array
     {
         $lignes = SupabaseClient::select(
@@ -1550,6 +2085,34 @@ class Participation
         }, $lignes);
     }
 
+    public static function parEquipe(int $equipeId): array
+    {
+        $lignes = SupabaseClient::select(
+            'participation',
+            '*,epreuve:epreuve_id(date_heure,statut,sport:sport_id(nom),ville:ville_id(nom))',
+            ['equipe_id' => 'eq.' . $equipeId]
+        );
+        $lignes = array_map(function (array $ligne) {
+            $ligne['epreuve_date']   = $ligne['epreuve']['date_heure'] ?? null;
+            $ligne['epreuve_statut'] = $ligne['epreuve']['statut'] ?? null;
+            $ligne['sport_nom']      = $ligne['epreuve']['sport']['nom'] ?? null;
+            $ligne['ville_nom']      = $ligne['epreuve']['ville']['nom'] ?? null;
+            unset($ligne['epreuve']);
+            return $ligne;
+        }, $lignes);
+
+        usort($lignes, fn(array $a, array $b) => strcmp((string) $b['epreuve_date'], (string) $a['epreuve_date']));
+        return $lignes;
+    }
+
+    public static function existe(int $epreuveId, int $equipeId): bool
+    {
+        $lignes = SupabaseClient::select('participation', 'epreuve_id', [
+            'epreuve_id' => 'eq.' . $epreuveId, 'equipe_id' => 'eq.' . $equipeId,
+        ]);
+        return $lignes !== [];
+    }
+
     public static function inscrire(int $epreuveId, int $equipeId, string $statut = 'en_attente'): void
     {
         SupabaseClient::insert('participation', [
@@ -1557,7 +2120,7 @@ class Participation
         ]);
     }
 
-    public static function saisirResultat(int $epreuveId, int $equipeId, int $score, int $classement): void
+    public static function saisirResultat(int $epreuveId, int $equipeId, ?int $score, ?int $classement): void
     {
         SupabaseClient::update(
             'participation',
@@ -1575,6 +2138,10 @@ class Participation
         );
     }
 
+    public static function retirer(int $epreuveId, int $equipeId): void { /* delete avec les deux filtres */ }
+    public static function retirerParEpreuve(int $epreuveId): void { /* delete epreuve_id = ... */ }
+    public static function retirerParEquipe(int $equipeId): void   { /* delete equipe_id = ... */ }
+
     public static function classementGeneral(): array
     {
         return SupabaseClient::select('vue_classement_general', '*', [], 'total_points.desc');
@@ -1584,10 +2151,14 @@ class Participation
 
 | Méthode | À quoi ça sert | Reçoit | Renvoie | Comment |
 |---|---|---|---|---|
+| `STATUTS` (constante) | Statuts d'inscription et libellés | | | Badges « En attente » / « Validée ». |
 | `parEpreuve($epreuveId)` | Les équipes inscrites à une épreuve, avec leur résultat | id de l'épreuve | liste avec `equipe_nom`, `ville_nom`, `score`, `classement`, `statut` | Embed imbriqué équipe → ville. Tri par `classement` croissant, les équipes sans classement (`NULL`) à la fin. Aplatissement sur place. |
-| `inscrire($epreuveId, $equipeId, $statut)` | Inscrire une équipe | les deux ids, statut (`en_attente` par défaut) | rien | Insère. Pas encore utilisée. |
-| `saisirResultat($epreuveId, $equipeId, $score, $classement)` | Enregistrer le résultat | les deux ids, score, rang | rien | Modifie la ligne visée par les deux ids. Pas encore utilisée. |
-| `validerInscription($epreuveId, $equipeId)` | Accepter une inscription | les deux ids | rien | Passe `statut` à `validee`. Pas encore utilisée. |
+| `parEquipe($equipeId)` | Les épreuves auxquelles une équipe est inscrite (page de gestion d'une équipe, « Ma ville ») | id de l'équipe | liste avec `epreuve_date`, `epreuve_statut`, `sport_nom`, `ville_nom`, `statut`, `score`, `classement` | Embed imbriqué épreuve → sport et ville. Tri en PHP par date décroissante (`usort` avec une fonction fléchée `fn`), car PostgREST ne trie pas sur une colonne embarquée. |
+| `existe($epreuveId, $equipeId)` | Savoir si l'équipe est déjà inscrite | les deux ids | `true`/`false` | Évite une double inscription. |
+| `inscrire($epreuveId, $equipeId, $statut)` | Inscrire une équipe | les deux ids, statut (`en_attente` par défaut) | rien | Le super admin inscrit en `validee`, le manager en `en_attente`. |
+| `saisirResultat($epreuveId, $equipeId, $score, $classement)` | Enregistrer le résultat | les deux ids, score et rang (ou `null` pour effacer) | rien | Modifie la ligne visée par les deux ids. |
+| `validerInscription($epreuveId, $equipeId)` | Accepter une inscription faite par un manager | les deux ids | rien | Passe `statut` à `validee`. |
+| `retirer(...)`, `retirerParEpreuve(...)`, `retirerParEquipe(...)` | Retirer une inscription, ou toutes celles d'une épreuve / d'une équipe | ids | rien | Utilisées avant de supprimer une épreuve ou une équipe. |
 | `classementGeneral()` | Le classement des villes | rien | liste de `ville_id`, `ville_nom`, `total_points` | Lit la **vue** `vue_classement_general` (un calcul enregistré dans la base, voir 10.2), triée par points décroissants. |
 
 ---
@@ -1628,18 +2199,21 @@ class AuthController extends Controller
 {
     public function afficherLogin(): void
     {
+        if (Auth::estConnecte()) {
+            $this->rediriger($this->pageApresConnexion());
+        }
         $this->afficher('auth/login', ['titre' => 'Connexion', 'erreur' => null]);
     }
 ```
 
 #### `afficherLogin(): void`
 
-- **Page :** `GET /login`. Affiche le formulaire, sans message d'erreur (`null`).
+- **Page :** `GET /login`. Affiche le formulaire, sans message d'erreur (`null`). Une personne déjà connectée est renvoyée directement vers sa page d'accueil.
 
 ```php
     public function traiterLogin(): void
     {
-        $email = trim($_POST['email'] ?? '');
+        $email = $this->champ('email');
         $motDePasse = $_POST['mot_de_passe'] ?? '';
 
         $utilisateur = Utilisateur::verifierIdentifiants($email, $motDePasse);
@@ -1653,8 +2227,19 @@ class AuthController extends Controller
         }
 
         Auth::connecter($utilisateur);
-        header('Location: /');
-        exit;
+        $this->rediriger($this->pageApresConnexion());
+    }
+
+    /** Chaque rôle arrive sur "sa" page d'accueil après connexion */
+    private function pageApresConnexion(): string
+    {
+        if (Auth::estSuperAdmin()) {
+            return '/admin';
+        }
+        if (Auth::estManager()) {
+            return '/gestion';
+        }
+        return '/';
     }
 ```
 
@@ -1665,11 +2250,15 @@ class AuthController extends Controller
 
 | Variable | Contenu |
 |---|---|
-| `$email` | Le champ `email` du formulaire, avec `trim()` pour enlever les espaces autour. `?? ''` = chaîne vide si le champ manque. |
+| `$email` | Le champ `email` du formulaire, lu par `$this->champ()` (espaces retirés, chaîne vide si absent). |
 | `$motDePasse` | Le champ `mot_de_passe`, sans `trim` (un espace peut faire partie d'un mot de passe). |
 | `$utilisateur` | La fiche renvoyée par `verifierIdentifiants`, ou `null`. |
 
-- **Comment ça marche :** si `null` → ré-affiche le formulaire avec un message volontairement vague (« Email ou mot de passe incorrect ») et `return` (fin). Sinon → `Auth::connecter()` puis redirection vers l'accueil et `exit`.
+- **Comment ça marche :** si `null` → ré-affiche le formulaire avec un message volontairement vague (« Email ou mot de passe incorrect ») et `return` (fin). Sinon → `Auth::connecter()` puis redirection vers la page du rôle.
+
+#### `pageApresConnexion(): string` (privée)
+
+- **Ce qu'elle renvoie :** `/admin` pour un super admin, `/gestion` pour un manager, `/` sinon. Une méthode privée est un outil interne au contrôleur, jamais appelé par le routeur.
 
 ```php
     public function afficherInscription(): void
@@ -1689,15 +2278,17 @@ class AuthController extends Controller
 ```php
     public function traiterInscription(): void
     {
-        $nomCompte = trim($_POST['nom_compte'] ?? '');
-        $email = trim($_POST['email'] ?? '');
+        $nomCompte = $this->champ('nom_compte');
+        $email = $this->champ('email');
         $motDePasse = $_POST['mot_de_passe'] ?? '';
         $motDePasseConfirmation = $_POST['mot_de_passe_confirmation'] ?? '';
-        $villeId = $_POST['ville_id'] !== '' ? (int) $_POST['ville_id'] : null;
+        $villeId = $this->champEntier('ville_id');
 
         $erreur = null;
         if ($nomCompte === '' || $email === '' || $motDePasse === '') {
             $erreur = 'Tous les champs marqués * sont obligatoires.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $erreur = 'L\'adresse email n\'est pas valide.';
         } elseif ($motDePasse !== $motDePasseConfirmation) {
             $erreur = 'Les deux mots de passe ne correspondent pas.';
         } elseif (strlen($motDePasse) < 8) {
@@ -1715,12 +2306,13 @@ class AuthController extends Controller
             return;
         }
 
-        $id = Utilisateur::creer($nomCompte, $email, $motDePasse, 'joueur', $villeId);
+        // L'inscription publique crée toujours un simple joueur : les managers
+        // et super admins sont créés par un super admin depuis /admin/utilisateurs
+        $id = Utilisateur::creer($nomCompte, $email, $motDePasse, Auth::ROLE_JOUEUR, $villeId);
         $utilisateur = Utilisateur::trouver($id);
 
         Auth::connecter($utilisateur);
-        header('Location: /profil');
-        exit;
+        $this->rediriger('/profil');
     }
 ```
 
@@ -1731,11 +2323,11 @@ class AuthController extends Controller
 
 | Variable | D'où elle vient | Règle vérifiée |
 |---|---|---|
-| `$nomCompte` | champ `nom_compte`, nettoyé par `trim` | obligatoire |
-| `$email` | champ `email`, nettoyé | obligatoire, et aucun compte ne doit déjà l'utiliser |
+| `$nomCompte` | champ `nom_compte`, lu par `champ()` | obligatoire |
+| `$email` | champ `email`, lu par `champ()` | obligatoire, de forme valide (`filter_var(..., FILTER_VALIDATE_EMAIL)`), et aucun compte ne doit déjà l'utiliser |
 | `$motDePasse` | champ `mot_de_passe` | obligatoire, au moins 8 caractères (`strlen` = longueur) |
 | `$motDePasseConfirmation` | champ `mot_de_passe_confirmation` | doit être identique au mot de passe (`!==` = différent) |
-| `$villeId` | champ `ville_id` (menu déroulant) | si vide (`''`, choix « Aucune ») → `null` ; sinon converti en entier |
+| `$villeId` | champ `ville_id` (menu déroulant), lu par `champEntier()` | `null` si vide (choix « Aucune »), sinon un entier |
 | `$erreur` | calculée | `null` tant que tout va bien ; sinon le **premier** message d'erreur rencontré (les `elseif` s'arrêtent à la première règle qui échoue) |
 | `$id` | `Utilisateur::creer(...)` | identifiant du nouveau compte, créé avec le rôle `joueur` (on ne peut pas s'auto-déclarer admin) |
 | `$utilisateur` | `Utilisateur::trouver($id)` | la fiche complète rechargée depuis la base |
@@ -1746,8 +2338,7 @@ class AuthController extends Controller
     public function deconnexion(): void
     {
         Auth::deconnecter();
-        header('Location: /');
-        exit;
+        $this->rediriger('/');
     }
 }
 ```
@@ -1900,82 +2491,230 @@ class ClassementController extends Controller
 
 - **Page :** `/classement`. Lit la vue SQL du classement et l'affiche.
 
-### 8.7 `AdminController.php`
+### 8.7 `AdminController.php` — tableau de bord, villes, sports (super admin)
 
 ```php
 class AdminController extends Controller
 {
     public function __construct()
     {
-        // Toutes les actions de ce contrôleur exigent d'être admin
-        Auth::exigerAdmin();
+        // Toutes les actions de ce contrôleur exigent d'être super admin
+        Auth::exigerSuperAdmin();
     }
 
     public function tableauDeBord(): void
     {
         $this->afficher('admin/tableau_de_bord', [
-            'titre'  => 'Administration',
-            'villes' => Ville::toutes(),
-            'sports' => Sport::tous(),
+            'titre' => 'Administration',
+            'stats' => [
+                'villes'       => count(Ville::toutes()),
+                'sports'       => count(Sport::tous()),
+                'utilisateurs' => count(Utilisateur::tous()),
+                'equipes'      => count(Equipe::toutes()),
+                'epreuves'     => count(Epreuve::toutes()),
+            ],
+            'epreuvesEnCours' => Epreuve::parStatut('en_cours'),
+            'managers'        => Utilisateur::parRole(Auth::ROLE_MANAGER),
         ]);
     }
 
-    public function nouvelleVille(): void
+    public function villes(): void
     {
-        $this->afficher('admin/villes/nouvelle', ['titre' => 'Nouvelle ville']);
+        $this->afficher('admin/villes/index', ['titre' => 'Villes', 'villes' => Ville::toutes()]);
     }
 
     public function creerVille(): void
     {
-        $nom = trim($_POST['nom'] ?? '');
+        $nom = $this->champ('nom');
 
         if ($nom === '') {
-            $this->afficher('admin/villes/nouvelle', [
-                'titre'  => 'Nouvelle ville',
+            Flash::erreur('Le nom de la ville est obligatoire.');
+            $this->rediriger('/admin/villes');
+        }
+
+        Ville::creer($nom);
+        Flash::succes('Ville « ' . $nom . ' » créée.');
+        $this->rediriger('/admin/villes');
+    }
+
+    public function modifierVille(string $id): void
+    {
+        $ville = Ville::trouver((int) $id);
+        if ($ville === null) {
+            $this->introuvable();
+        }
+
+        $this->afficher('admin/villes/modifier', ['titre' => 'Modifier la ville', 'ville' => $ville]);
+    }
+
+    public function enregistrerVille(string $id): void
+    {
+        $ville = Ville::trouver((int) $id);
+        if ($ville === null) {
+            $this->introuvable();
+        }
+
+        $nom = $this->champ('nom');
+        if ($nom === '') {
+            $this->afficher('admin/villes/modifier', [
+                'titre'  => 'Modifier la ville',
+                'ville'  => $ville,
                 'erreur' => 'Le nom est obligatoire.',
             ]);
             return;
         }
 
-        Ville::creer($nom);
-        header('Location: /admin');
-        exit;
+        Ville::modifier((int) $id, $nom);
+        Flash::succes('Ville renommée en « ' . $nom . ' ».');
+        $this->rediriger('/admin/villes');
     }
 
     public function supprimerVille(string $id): void
     {
-        Ville::supprimer((int) $id);
-        header('Location: /admin');
-        exit;
+        $villeId = (int) $id;
+
+        if (Equipe::parVille($villeId) !== []) {
+            Flash::erreur('Impossible de supprimer cette ville : des équipes y sont rattachées.');
+            $this->rediriger('/admin/villes');
+        }
+        if (Epreuve::parVille($villeId) !== []) {
+            Flash::erreur('Impossible de supprimer cette ville : des épreuves y sont programmées.');
+            $this->rediriger('/admin/villes');
+        }
+        if (Utilisateur::parVille($villeId) !== []) {
+            Flash::erreur('Impossible de supprimer cette ville : des comptes (joueurs ou manager) y sont rattachés.');
+            $this->rediriger('/admin/villes');
+        }
+
+        try {
+            Ville::supprimer($villeId);
+            Flash::succes('Ville supprimée.');
+        } catch (SupabaseException $e) {
+            Flash::erreur('Suppression refusée par la base de données : ' . $e->getMessage());
+        }
+        $this->rediriger('/admin/villes');
     }
+
+    // sports(), creerSport(), modifierSport(), enregistrerSport(), supprimerSport() :
+    // exactement le même schéma, sur la table sport (avec la colonne description en plus).
 }
 ```
 
 #### `__construct()`
 
 - **Ce que c'est :** le **constructeur**, une méthode spéciale exécutée automatiquement au moment du `new AdminController()` fait par le routeur, **avant** l'action demandée.
-- **À quoi ça sert :** placer le videur `Auth::exigerAdmin()` une seule fois pour **toutes** les pages d'administration. Impossible d'oublier de protéger une page.
+- **À quoi ça sert :** placer le videur `Auth::exigerSuperAdmin()` une seule fois pour **toutes** les pages du contrôleur. Impossible d'oublier de protéger une page. Les trois autres contrôleurs d'administration font pareil, chacun avec le videur adapté à son public.
 
 #### `tableauDeBord(): void`
 
-- **Page :** `/admin`. Liste des villes (avec bouton supprimer) et des sports.
+- **Page :** `/admin`.
+- **Variables passées à la vue :** `stats` (une fiche de cinq compteurs, obtenus avec `count()` = « combien d'éléments dans la liste »), `epreuvesEnCours` (les épreuves au statut `en_cours`), `managers` (les comptes de rôle `manager`).
 
-#### `nouvelleVille(): void`
+#### `villes(): void`
 
-- **Page :** `GET /admin/villes/nouvelle`. Formulaire de création.
+- **Page :** `GET /admin/villes`. Une seule page réunit la liste des villes et le formulaire de création.
 
 #### `creerVille(): void`
 
 - **Page :** `POST /admin/villes`.
-- **Variable `$nom` :** le champ `nom`, nettoyé. S'il est vide → formulaire ré-affiché avec `erreur`. Sinon → `Ville::creer($nom)` et redirection vers `/admin`.
+- **Variable `$nom` :** le champ `nom`, lu par `champ()`. S'il est vide → `Flash::erreur()` puis redirection vers la liste (le message s'affichera en haut). Sinon → `Ville::creer($nom)`, `Flash::succes()` et redirection. C'est le schéma **PRG** (Post/Redirect/Get) avec un message flash : si l'utilisateur rafraîchit la page, le formulaire n'est pas renvoyé.
+
+#### `modifierVille(string $id)` et `enregistrerVille(string $id)`
+
+- **Pages :** `GET` puis `POST /admin/villes/4/modifier`.
+- **Comment ça marche :** on cherche la ville ; si elle n'existe pas → `introuvable()` (404). Le `GET` affiche le formulaire pré-rempli. Le `POST` lit le nom, ré-affiche le formulaire avec `erreur` s'il est vide, sinon `Ville::modifier()` et redirection avec message.
 
 #### `supprimerVille(string $id): void`
 
-- **Page :** `POST /admin/villes/4/supprimer`. Supprime la ville puis redirige. Le formulaire côté vue demande une confirmation avant d'envoyer.
+- **Page :** `POST /admin/villes/4/supprimer`.
+- **Comment ça marche :** avant de supprimer, on vérifie qu'**aucune** équipe, épreuve ou compte n'est rattaché à la ville (`!== []` = « la liste n'est pas vide »). Sinon, message d'erreur explicite plutôt que suppression en cascade : supprimer une ville ne doit pas effacer silencieusement ses équipes. Le `try { ... } catch (SupabaseException $e) { ... }` est une seconde sécurité : si la base refuse malgré tout (contrainte de clé étrangère), on affiche son message au lieu de planter.
 
-Le commentaire du fichier indique que ce CRUD (Créer, Lire, Modifier,
-Supprimer) des villes est le **modèle à recopier** pour les sports, équipes et
-épreuves.
+#### Les cinq méthodes « sports »
+
+`sports()`, `creerSport()`, `modifierSport($id)`, `enregistrerSport($id)`,
+`supprimerSport($id)` reproduisent exactement le schéma des villes, avec la
+colonne `description` en plus (facultative : `$this->champ('description') ?: null`
+transforme une chaîne vide en `null`). La suppression est refusée si des
+équipes ou des épreuves utilisent le sport.
+
+### 8.8 `AdminUtilisateurController.php` — les comptes (super admin)
+
+C'est ici que le super admin **crée les managers de ville**.
+
+| Méthode | Page | Rôle |
+|---|---|---|
+| `__construct()` | | `Auth::exigerSuperAdmin()`. |
+| `liste()` | `GET /admin/utilisateurs` | Liste de tous les comptes (via `Utilisateur::tous()`, sans hash) + formulaire de création. Appelle `afficherListe()`. |
+| `afficherListe($erreur, $saisie)` (privée) | | Affiche la vue avec `utilisateurs`, `villes`, `roles` (= `Auth::ROLES`), et, en cas d'erreur, le message et la saisie précédente pour pré-remplir le formulaire. |
+| `creer()` | `POST /admin/utilisateurs` | Lit `nom_compte`, `email`, `mot_de_passe`, `role`, `ville_id` ; valide (voir `valider()`), vérifie que l'email est libre, puis `Utilisateur::creer()` et redirection avec message. |
+| `modifier($id)` | `GET /admin/utilisateurs/7/modifier` | Formulaire pré-rempli. Passe `estMoi` à la vue (vrai si l'on modifie son propre compte). |
+| `enregistrer($id)` | `POST /admin/utilisateurs/7/modifier` | Valide, refuse un email pris par **un autre** compte, enregistre via `Utilisateur::modifier()`, et change le mot de passe seulement si le champ est rempli. |
+| `supprimer($id)` | `POST /admin/utilisateurs/7/supprimer` | Retire d'abord la personne de ses équipes, puis supprime le compte. |
+| `valider(...)` (privée) | | Les règles communes : nom et email obligatoires, email de forme valide, rôle connu, **un manager doit avoir une ville**, ville existante, mot de passe obligatoire à la création et d'au moins 8 caractères s'il est fourni. Renvoie le premier message d'erreur rencontré, ou `null`. |
+
+Deux garde-fous évitent de se bloquer soi-même :
+
+- on ne peut pas **supprimer son propre compte** ;
+- on ne peut pas **changer son propre rôle** (`$role = $estMoi ? $utilisateur['role'] : $this->champ('role')` : si c'est moi, on garde le rôle actuel quoi qu'envoie le formulaire).
+
+### 8.9 `AdminEpreuveController.php` — épreuves, participations, résultats (super admin)
+
+| Méthode | Page | Rôle |
+|---|---|---|
+| `liste()` / `afficherListe()` | `GET /admin/epreuves` | Toutes les épreuves + formulaire de création (sport, ville, date, statut). |
+| `creer()` | `POST /admin/epreuves` | Lit et valide le formulaire via `lireFormulaire()`, puis `Epreuve::creer()`. |
+| `modifier($id)` / `enregistrer($id)` | `GET`/`POST /admin/epreuves/5/modifier` | Formulaire pré-rempli et enregistrement des quatre colonnes. |
+| `changerStatut($id)` | `POST /admin/epreuves/5/statut` | Menu rapide dans la liste : vérifie que le statut est dans `Epreuve::STATUTS`, puis `Epreuve::changerStatut()`. C'est ainsi qu'on passe une épreuve « en cours » puis « terminée ». |
+| `supprimer($id)` | `POST /admin/epreuves/5/supprimer` | Supprime d'abord les participations, puis l'épreuve. |
+| `participations($id)` | `GET /admin/epreuves/5/participations` | Équipes inscrites avec leur résultat, et liste des équipes **du même sport** pas encore inscrites (`array_filter` = « garde les éléments qui vérifient la condition »). |
+| `inscrire($id)` | `POST /admin/epreuves/5/participations` | Inscrit une équipe, directement en statut `validee`. Refuse si le sport ne correspond pas ou si elle est déjà inscrite. |
+| `resultat($id)` | `POST .../participations/resultat` | Enregistre `score` (≥ 0) et `classement` (≥ 1) d'une équipe. Le score alimente le classement général des villes. |
+| `validerParticipation($id)` | `POST .../participations/valider` | Passe une inscription faite par un manager de `en_attente` à `validee`. |
+| `retirerParticipation($id)` | `POST .../participations/retirer` | Retire une équipe de l'épreuve. |
+| `lireFormulaire()` (privée) | | Lit `sport_id`, `ville_id`, `statut`, `date_heure` ; vérifie que le sport et la ville existent et que le statut est connu ; convertit la date du champ `datetime-local` (`2026-09-20T15:00`) au format de la base (`2026-09-20 15:00:00`) avec `DateTime`, dans un `try/catch` pour rejeter une date invalide. Renvoie une liste de cinq valeurs, récupérée par **déstructuration** : `[$sportId, $villeId, $dateHeure, $statut, $erreur] = $this->lireFormulaire();`. |
+
+### 8.10 `AdminEquipeController.php` — équipes et membres (super admin **et** manager)
+
+C'est le contrôleur partagé. Son constructeur appelle `Auth::exigerAdmin()`
+(super admin **ou** manager) ; ensuite, chaque action qui touche une équipe
+précise passe par `chargerEquipe()`, qui vérifie la ville.
+
+```php
+    private function chargerEquipe(string $id): array
+    {
+        $equipe = Equipe::trouver((int) $id);
+        if ($equipe === null) {
+            $this->introuvable();
+        }
+        Auth::exigerGestionVille((int) $equipe['ville_id']);
+        return $equipe;
+    }
+```
+
+- **404** si l'équipe n'existe pas, **403** si le compte connecté ne gère pas sa ville (un manager de Saint-Denis ne peut pas ouvrir une équipe de Saint-Pierre, même en tapant l'adresse à la main).
+
+| Méthode | Page | Rôle |
+|---|---|---|
+| `liste()` / `afficherListe()` | `GET /admin/equipes` | Super admin : toutes les équipes et un menu « Ville ». Manager : seulement `Equipe::parVille(Auth::villeGeree())`, sans menu (la vue affiche « Ville : X (ta ville) »). |
+| `creer()` | `POST /admin/equipes` | `$villeId = Auth::estManager() ? Auth::villeGeree() : $this->champEntier('ville_id')` : pour un manager, la ville est **imposée**, quoi qu'envoie le formulaire. Après création, redirection vers la page de l'équipe pour ajouter des membres. |
+| `supprimer($id)` | `POST /admin/equipes/3/supprimer` | Vide le roster et les inscriptions, puis supprime. |
+| `membres($id)` | `GET /admin/equipes/3` | La page de gestion : membres, comptes que l'on peut ajouter (`candidats`), inscriptions aux épreuves et épreuves à venir du même sport (`epreuvesDisponibles`). Pour un manager, les candidats sont les comptes de sa ville **ou sans ville** (`Utilisateur::parVille($ville, true)`). |
+| `ajouterMembre($id)` | `POST /admin/equipes/3/membres` | Vérifie que le compte existe, que le rôle interne est connu, qu'un manager ne recrute pas dans une autre ville, et que la personne n'est pas déjà membre. |
+| `modifierMembre($id)` | `POST .../membres/modifier` | Rôle interne (joueur / capitaine), pénalité, récompense, en une seule mise à jour. |
+| `retirerMembre($id)` | `POST .../membres/retirer` | Retire un membre. |
+| `inscrireEpreuve($id)` | `POST /admin/equipes/3/inscriptions` | Inscrit l'équipe à une épreuve **à venir** du **même sport**, sans doublon. Statut : `validee` si c'est un super admin, `en_attente` si c'est un manager (un super admin devra valider). |
+| `retirerInscription($id)` | `POST .../inscriptions/retirer` | Annule une inscription. |
+| `retourEquipe($equipeId)` (privée) | | Raccourci : redirection vers `/admin/equipes/<id>`. |
+
+### 8.11 `ManagerController.php` — la page « Ma ville » (manager)
+
+| Méthode | Page | Rôle |
+|---|---|---|
+| `__construct()` | | `Auth::exigerManager()`. |
+| `index()` | `GET /gestion` | Charge la ville du manager (`Auth::villeGeree()`), ses équipes, les inscriptions encore `en_attente` (en parcourant `Participation::parEquipe()` pour chaque équipe, avec deux `foreach` imbriqués) et les épreuves à venir. Si le compte n'a pas de ville, la vue affiche un message demandant à un super admin de corriger le compte. |
+
+La gestion proprement dite (créer une équipe, ajouter des membres, inscrire à
+une épreuve) se fait dans `AdminEquipeController`, partagé avec le super admin.
 
 ---
 
@@ -2012,6 +2751,10 @@ visiteurs (attaque **XSS**).
     <?php require __DIR__ . '/navbar.php'; ?>
 
     <main class="conteneur">
+        <?php foreach (Flash::recuperer() as $flash): ?>
+            <p class="flash flash-<?= htmlspecialchars($flash['type']) ?>"><?= htmlspecialchars($flash['message']) ?></p>
+        <?php endforeach; ?>
+
         <?php require $cheminVue; ?>
     </main>
 
@@ -2028,6 +2771,7 @@ visiteurs (attaque **XSS**).
 | `<title>...` | Le titre de l'onglet : « Équipes — Entrevilles-Reu » si `$titre` existe, sinon juste « Entrevilles-Reu ». |
 | `<link rel="stylesheet" ...>` | Charge la feuille de style. |
 | `require navbar.php` | Insère la barre de navigation. |
+| `foreach (Flash::recuperer() as $flash)` | Affiche les messages laissés par la page précédente (« Ville créée. »), un bandeau par message, puis les efface (voir 5.7). |
 | `<main class="conteneur">` + `require $cheminVue` | Insère **la vue demandée** par le contrôleur (`$cheminVue` vient de `Controller::afficher`). |
 | `require footer.php` | Insère le pied de page. |
 
@@ -2045,8 +2789,10 @@ visiteurs (attaque **XSS**).
         <a href="/classement">Classement</a>
 
         <?php if (Auth::estConnecte()): ?>
-            <?php if (Auth::estAdmin()): ?>
+            <?php if (Auth::estSuperAdmin()): ?>
                 <a href="/admin">Administration</a>
+            <?php elseif (Auth::estManager()): ?>
+                <a href="/gestion">Ma ville</a>
             <?php endif; ?>
             <a href="/profil">Profil (<?= htmlspecialchars(Auth::utilisateur()['nom_compte']) ?>)</a>
             <a href="/deconnexion">Déconnexion</a>
@@ -2059,7 +2805,7 @@ visiteurs (attaque **XSS**).
 ```
 
 - Les quatre premiers liens sont toujours visibles.
-- Si connecté : lien « Administration » (seulement pour un admin), « Profil (pseudo) », « Déconnexion ».
+- Si connecté : lien « Administration » (super admin) **ou** « Ma ville » (manager), puis « Profil (pseudo) », « Déconnexion ».
 - Sinon : « Connexion », « Créer un compte ».
 - La barre ne reçoit aucune variable : elle interroge directement `Auth`.
 
@@ -2067,11 +2813,46 @@ visiteurs (attaque **XSS**).
 
 Une seule ligne de texte dans une balise `<footer class="pied-page">`.
 
-#### `erreur_404.php`
+#### `menu_admin.php` — le sous-menu de l'espace d'administration
 
-Page complète et autonome (avec son propre `<html>`), affichée par le routeur
-ou par un contrôleur quand une ressource n'existe pas. Contient un titre « 404
-— Page introuvable » et un lien vers l'accueil.
+```php
+<?php
+$uriActuelle = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
+$liensMenu = Auth::estSuperAdmin()
+    ? [
+        '/admin'              => 'Tableau de bord',
+        '/admin/villes'       => 'Villes',
+        '/admin/sports'       => 'Sports',
+        '/admin/utilisateurs' => 'Utilisateurs',
+        '/admin/epreuves'     => 'Épreuves',
+        '/admin/equipes'      => 'Équipes',
+    ]
+    : [
+        '/gestion'       => 'Ma ville',
+        '/admin/equipes' => 'Mes équipes',
+    ];
+?>
+<nav class="menu-admin">
+    <?php foreach ($liensMenu as $lien => $libelle): ?>
+        <?php $actif = $uriActuelle === $lien || ($lien !== '/admin' && str_starts_with($uriActuelle, $lien . '/')); ?>
+        <a href="<?= $lien ?>" class="<?= $actif ? 'actif' : '' ?>"><?= htmlspecialchars($libelle) ?></a>
+    <?php endforeach; ?>
+</nav>
+```
+
+- Inclus en haut de chaque vue d'administration (`require __DIR__ . '/../partials/menu_admin.php'`).
+- `$liensMenu` dépend du rôle : six rubriques pour le super admin, deux pour le manager.
+- `$actif` : le lien de la page en cours est surligné. Vrai si l'adresse est exactement celle du lien, ou si elle commence par le lien suivi de `/` (`/admin/equipes/3` surligne « Équipes »). L'exception `$lien !== '/admin'` évite que « Tableau de bord » soit surligné sur toutes les pages.
+
+#### `erreur_403.php`, `erreur_404.php`, `erreur_500.php`
+
+Pages complètes et autonomes (avec leur propre `<html>`) :
+
+| Page | Quand | Variable affichée |
+|---|---|---|
+| `erreur_403.php` | Accès refusé : `Auth::refuser()` ou jeton CSRF manquant dans le routeur | `$motifRefus` (le pourquoi) et un lien « Se connecter » si personne n'est connecté |
+| `erreur_404.php` | Adresse ou `id` inconnu : routeur ou `Controller::introuvable()` | — |
+| `erreur_500.php` | Erreur imprévue attrapée par `index.php` (base injoignable…) | `$messageErreur` |
 
 ### 9.2 Les vues de pages
 
@@ -2124,6 +2905,8 @@ ou par un contrôleur quand une ressource n'existe pas. Contient un titre « 404
 <?php endif; ?>
 
 <form method="POST" action="/login">
+    <?= Csrf::champ() ?>
+
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required>
 
@@ -2135,6 +2918,7 @@ ou par un contrôleur quand une ressource n'existe pas. Contient un titre « 404
 ```
 
 - Affiche le message d'erreur s'il y en a un.
+- `<?= Csrf::champ() ?>` insère le champ caché portant le jeton de sécurité (voir 5.6). **Tous** les formulaires `POST` du site commencent ainsi ; sans lui, le routeur refuse l'envoi.
 - `<form method="POST" action="/login">` : à l'envoi, le navigateur fait un `POST /login` avec les champs.
 - `name="email"` : c'est ce nom que PHP retrouve dans `$_POST['email']`.
 - `required` : le navigateur refuse d'envoyer un champ vide (première barrière ; le serveur revérifie).
@@ -2189,23 +2973,38 @@ Grille de cartes : nom, ville, sport, bouton « Voir l'équipe ».
 
 - `foreach ($classement as $i => $ligne)` : `$i` est la position dans la liste (0, 1, 2…), `$ligne` la fiche. Le rang affiché est `$i + 1` (1, 2, 3…) : comme la liste est déjà triée par points, la position **est** le rang.
 
-#### `admin/tableau_de_bord.php` — variables : `$villes`, `$sports`
+### 9.3 Les vues d'administration
 
-- Bouton « + Ajouter une ville » vers `/admin/villes/nouvelle`.
-- Tableau des villes ; chaque ligne contient un mini-formulaire :
+Toutes commencent par `require menu_admin.php` et suivent les mêmes motifs :
+
+- **Une page = une liste + un formulaire de création** en bas (villes, sports, utilisateurs, épreuves, équipes).
+- **Un formulaire par action dans les tableaux** (`class="form-inline"`) : supprimer, changer un statut, enregistrer un résultat. Chaque petit formulaire contient `Csrf::champ()`, éventuellement un `<input type="hidden">` avec l'identifiant visé, et un bouton.
   ```php
-  <form method="POST" action="/admin/villes/<?= $ville['id'] ?>/supprimer" onsubmit="return confirm('Supprimer cette ville ?');" style="display:inline;">
-      <button type="submit">Supprimer</button>
+  <form method="POST" action="/admin/villes/<?= (int) $ville['id'] ?>/supprimer" class="form-inline" onsubmit="return confirm('Supprimer cette ville ?');">
+      <?= Csrf::champ() ?>
+      <button type="submit" class="bouton-danger">Supprimer</button>
   </form>
   ```
-  `onsubmit="return confirm(...)"` est la **seule ligne de JavaScript** du projet : elle ouvre une boîte « OK / Annuler » ; si l'on annule, le formulaire n'est pas envoyé. On utilise `POST` (et non un simple lien) pour une suppression, car une action qui modifie des données ne doit jamais se déclencher par un simple clic sur un lien `GET`.
-- Liste des sports.
+  `onsubmit="return confirm(...)"` est la seule forme de JavaScript du projet : une boîte « OK / Annuler » ; si l'on annule, rien n'est envoyé. On utilise `POST` (et non un simple lien) pour une suppression, car une action qui modifie des données ne doit jamais se déclencher par un simple clic sur un lien `GET`.
+- **Pré-remplissage après erreur** : `value="<?= htmlspecialchars($saisie['nom'] ?? '') ?>"` et `<?= ... === ... ? 'selected' : '' ?>` sur les options des menus, pour que l'utilisateur ne retape pas tout.
+- **Badges** : `class="badge badge-<?= $valeur ?>"` avec la valeur brute (`super_admin`, `manager`, `en_attente`…) et le libellé lisible pris dans la constante correspondante (`$roles[...]`, `$statuts[...]`).
 
-#### `admin/villes/nouvelle.php` — variable : `$erreur`
+| Vue | Variables reçues | Contenu |
+|---|---|---|
+| `admin/tableau_de_bord.php` | `stats`, `epreuvesEnCours`, `managers` | Cinq compteurs cliquables (`.grille-stats`), les épreuves en cours avec un lien « Résultats », la liste des managers et leur ville. |
+| `admin/villes/index.php` | `villes` | Tableau Nom / Modifier / Supprimer + formulaire « Ajouter une ville ». |
+| `admin/villes/modifier.php` | `ville`, `erreur` | Formulaire de renommage avec bouton « Annuler ». |
+| `admin/sports/index.php`, `sports/modifier.php` | `sports` / `sport`, `erreur` | Idem, avec une `<textarea>` pour la description. |
+| `admin/utilisateurs/index.php` | `utilisateurs`, `villes`, `roles`, `erreur`, `saisie` | Tableau Nom / Email / Rôle (badge) / Ville / Actions ; « (moi) » à côté de son propre compte, sans bouton Supprimer. Formulaire de création avec menus Rôle et Ville. |
+| `admin/utilisateurs/modifier.php` | `utilisateur`, `villes`, `roles`, `erreur`, `estMoi` | Même formulaire ; le menu Rôle est `disabled` si `estMoi` ; champ « Nouveau mot de passe » facultatif. |
+| `admin/epreuves/index.php` | `epreuves`, `sports`, `villes`, `statuts`, `erreur`, `saisie` | Tableau avec, par ligne, un badge de statut **et** un mini-formulaire « Changer » (menu des statuts), puis les boutons Participations / Modifier / Supprimer. Formulaire de création avec `<input type="datetime-local">`. |
+| `admin/epreuves/modifier.php` | `epreuve`, `sports`, `villes`, `statuts`, `erreur` | Formulaire pré-rempli ; la date est convertie par `Format::dateHeureLocal()`. |
+| `admin/epreuves/participations.php` | `epreuve`, `participations`, `equipesDisponibles`, `statuts`, `statutsEpreuve` | Par équipe inscrite : badge d'inscription, mini-formulaire score / rang, bouton « Valider » (si en attente) et « Retirer ». En bas, menu pour inscrire une équipe du même sport. |
+| `admin/equipes/index.php` | `equipes`, `sports`, `villes`, `villeGeree`, `erreur`, `saisie` | Liste (limitée à la ville pour un manager) + formulaire de création ; le menu Ville n'apparaît que pour le super admin. |
+| `admin/equipes/membres.php` | `equipe`, `membres`, `candidats`, `rolesInternes`, `participations`, `epreuvesDisponibles`, `statutsParticipation`, `statutsEpreuve` | Membres avec, par ligne, un formulaire rôle / pénalité / récompense et un bouton Retirer ; formulaire « Ajouter un membre » ; tableau des inscriptions aux épreuves ; formulaire « Inscrire à une épreuve » (avec un rappel pour le manager : l'inscription sera « en attente »). |
+| `gestion/index.php` | `ville`, `equipes`, `enAttente`, `epreuvesAVenir` | La page « Ma ville » du manager : compteurs, ses équipes avec lien « Membres & inscriptions », inscriptions en attente, prochaines épreuves. |
 
-Formulaire `POST /admin/villes` avec un champ `nom`.
-
-### 9.3 Récapitulatif : qui fournit quoi à quelle vue
+### 9.4 Récapitulatif : qui fournit quoi aux vues publiques
 
 | Vue | Contrôleur → méthode | Variables reçues |
 |---|---|---|
@@ -2218,8 +3017,7 @@ Formulaire `POST /admin/villes` avec un champ `nom`.
 | `equipes/liste` | `EquipeController::liste` | `titre`, `equipes` |
 | `equipes/detail` | `EquipeController::detail` | `titre`, `equipe`, `membres` |
 | `classement/index` | `ClassementController::index` | `titre`, `classement` |
-| `admin/tableau_de_bord` | `AdminController::tableauDeBord` | `titre`, `villes`, `sports` |
-| `admin/villes/nouvelle` | `AdminController::nouvelleVille`, `creerVille` | `titre`, `erreur` (facultatif) |
+| `gestion/index` et `admin/*` | voir le tableau de la section 9.3 | |
 
 ---
 
@@ -2302,40 +3100,97 @@ ALTER TABLE utilisateur ADD CONSTRAINT utilisateur_email_unique UNIQUE (email);
 - Première ligne : ajoute la colonne `mot_de_passe` (texte jusqu'à 255 caractères) si elle n'existe pas encore. Elle stockera l'empreinte bcrypt.
 - Deuxième ligne : impose que deux comptes ne puissent pas avoir le même email. C'est une double sécurité : le PHP vérifie déjà, mais la base refuse aussi.
 
-### 10.4 `creer_admin.php` — créer le premier administrateur (obsolète)
+### 10.4 `migration_roles.sql` — autoriser les rôles manager et super_admin
 
-```php
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../app/Core/Database.php';
+```sql
+DO $$
+DECLARE
+    contrainte record;
+BEGIN
+    FOR contrainte IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'utilisateur'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%role%'
+    LOOP
+        EXECUTE format('ALTER TABLE utilisateur DROP CONSTRAINT %I', contrainte.conname);
+    END LOOP;
+END $$;
 
-$nomCompte = 'Administrateur';
-$email = 'admin@entrevilles-reu.re';
-$motDePasseClair = 'changez-moi123';
+UPDATE utilisateur SET role = 'super_admin' WHERE role = 'admin';
 
-$hash = password_hash($motDePasseClair, PASSWORD_DEFAULT);
+ALTER TABLE utilisateur DROP CONSTRAINT IF EXISTS utilisateur_role_check;
+ALTER TABLE utilisateur
+    ADD CONSTRAINT utilisateur_role_check
+    CHECK (role IN ('joueur', 'manager', 'super_admin'));
 
-$pdo = Database::connexion();
-$stmt = $pdo->prepare(
-    "INSERT INTO utilisateur (email, nom_compte, role, mot_de_passe)
-     VALUES (:email, :nom_compte, 'admin', :hash)
-     ON CONFLICT (email) DO NOTHING"
-);
-$stmt->execute(['email' => $email, 'nom_compte' => $nomCompte, 'hash' => $hash]);
+ALTER TABLE utilisateur DROP CONSTRAINT IF EXISTS utilisateur_manager_ville_check;
+ALTER TABLE utilisateur
+    ADD CONSTRAINT utilisateur_manager_ville_check
+    CHECK (role <> 'manager' OR ville_id IS NOT NULL);
 ```
 
-**À quoi ça sert :** comme l'inscription publique crée toujours des `joueur`, il
-faut un moyen de créer le premier `admin`. Ce script se lance une fois en ligne
-de commande (`php database/creer_admin.php`).
+À exécuter une fois dans Supabase (SQL Editor), après `migration_mot_de_passe.sql`.
 
-| Variable | Rôle |
+| Bloc | En français |
 |---|---|
-| `$nomCompte`, `$email`, `$motDePasseClair` | Les identifiants de l'admin à créer (mot de passe à changer ensuite). |
-| `$hash` | L'empreinte du mot de passe. |
-| `$pdo` | Une connexion directe à la base (ancienne méthode PDO). |
-| `$stmt` | La requête d'insertion préparée. `ON CONFLICT (email) DO NOTHING` = « si l'email existe déjà, ne fais rien » (on peut relancer sans créer de doublon). |
+| `DO $$ ... END $$;` | Un petit programme SQL. Il cherche dans le catalogue de la base (`pg_constraint`) toute règle `CHECK` existante sur la table `utilisateur` qui mentionne `role` (son nom dépend du schéma d'origine, d'où la recherche dynamique) et la supprime. Sans cela, l'ancienne règle « role ∈ (joueur, admin) » refuserait les nouvelles valeurs. |
+| `UPDATE ... SET role = 'super_admin' WHERE role = 'admin'` | Les anciens admins deviennent super admins. |
+| `CHECK (role IN (...))` | Nouvelle règle : seules ces trois valeurs sont acceptées. Le `DROP CONSTRAINT IF EXISTS` juste avant permet de relancer le script sans erreur. |
+| `CHECK (role <> 'manager' OR ville_id IS NOT NULL)` | « Si le rôle est manager, alors la ville est obligatoire. » La base impose la règle que le PHP vérifie déjà. |
 
-**Problème :** ce script utilise `Database.php`, un fichier qui **n'existe plus**
-(remplacé par `SupabaseClient`). Il ne fonctionne donc plus (voir section 13).
+Le fichier se termine par les instructions à utiliser si la colonne `role` est
+un type `ENUM` plutôt qu'un texte (cas où les `ALTER` ci-dessus échoueraient).
+
+### 10.5 `creer_admin.php` — créer le premier super administrateur
+
+```php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Ce script ne s\'exécute qu\'en ligne de commande.');
+}
+
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../app/Core/autoload.php';
+
+$email           = $argv[1] ?? 'admin@entrevilles-reu.re';
+$motDePasseClair = $argv[2] ?? 'changez-moi123';
+$nomCompte       = $argv[3] ?? 'Super administrateur';
+
+if (strlen($motDePasseClair) < 8) {
+    echo "Le mot de passe doit faire au moins 8 caractères.\n";
+    exit(1);
+}
+
+$existant = Utilisateur::trouverParEmail($email);
+if ($existant !== null) {
+    echo "Un compte existe déjà avec l'email $email (rôle : {$existant['role']}).\n";
+    exit(1);
+}
+
+$id = Utilisateur::creer($nomCompte, $email, $motDePasseClair, Auth::ROLE_SUPER_ADMIN);
+echo "Super administrateur créé (id $id) : $email / $motDePasseClair\n";
+```
+
+**À quoi ça sert :** l'inscription publique crée toujours des `joueur`, et seul
+un super admin peut créer d'autres comptes. Il faut donc un moyen de créer le
+**premier** super admin : ce script, lancé une fois en ligne de commande.
+
+```
+php database/creer_admin.php
+php database/creer_admin.php moi@exemple.re MonMotDePasse "Prénom Nom"
+```
+
+| Ligne / variable | Rôle |
+|---|---|
+| `PHP_SAPI !== 'cli'` | Refuse de s'exécuter depuis un navigateur : uniquement en ligne de commande (`cli`). Double sécurité avec le `.htaccess` du dossier. |
+| `$argv[1]`, `$argv[2]`, `$argv[3]` | Les arguments tapés après le nom du script (email, mot de passe, nom). `?? 'valeur'` = valeur par défaut si absent. |
+| `Utilisateur::trouverParEmail($email)` | Si le compte existe déjà, on s'arrête (`exit(1)` = fin avec un code d'erreur) en expliquant comment le promouvoir en SQL. |
+| `Utilisateur::creer(..., Auth::ROLE_SUPER_ADMIN)` | Réutilise le modèle : le mot de passe est haché, la ligne insérée via Supabase. |
+
+Une fois connecté, changer le mot de passe depuis « Utilisateurs », puis
+supprimer le fichier.
 
 ---
 
@@ -2384,6 +3239,16 @@ Une **classe CSS** est une étiquette posée sur une balise HTML
 | `.etat-vide` | Bloc « aucune donnée » (défini mais pas utilisé par les vues). |
 | `.pied-page` | Le pied de page. |
 | `@media (max-width: 640px)` | Règles spéciales pour les petits écrans. |
+| `.menu-admin`, `.menu-admin a.actif` | Le sous-menu de l'administration ; le lien actif est surligné en cyan. |
+| `.grille-stats`, `.stat` | Les compteurs du tableau de bord (gros chiffre en Rajdhani, libellé en dessous). |
+| `.flash`, `.flash-succes`, `.flash-erreur` | Les bandeaux de message flash (vert cyan ou rouge). |
+| `form.form-inline` | Annule la mise en forme « panneau » des formulaires pour les petits formulaires dans les tableaux : affichage en ligne, sans fond ni bordure. |
+| `form.form-large` | Formulaire plus large (720 px) pour les pages avec plusieurs menus. |
+| `.actions` | Aligne côte à côte les boutons d'une cellule. |
+| `.bouton-petit`, `.bouton-secondaire`, `.bouton-danger` | Variantes de bouton : compact, discret (fond sombre), rouge pour les suppressions. |
+| `.badge-super_admin`, `.badge-manager`, `.badge-joueur` | Pastilles de rôle (violet, or, gris). |
+| `.badge-validee`, `.badge-en_attente` | Pastilles de statut d'inscription (cyan, or). |
+| `.texte-doux` | Petit texte gris d'aide. |
 
 Les polices `Rajdhani` (titres) et `Inter` (texte) sont chargées depuis Google
 Fonts par la ligne `@import` du début.
@@ -2441,46 +3306,54 @@ fois que du nouveau code arrive sur la branche `main`, copie le dossier
 
 ## 13. Points d'attention : bugs et améliorations possibles
 
-Ces observations viennent de la lecture du code. Elles sont classées par
-importance et expliquées simplement.
+Ces observations viennent de la lecture du code. Les premières ont été
+**corrigées** lors de l'ajout des rôles et de l'espace d'administration : elles
+restent listées parce que comprendre le problème et sa correction est
+instructif.
 
-1. **La configuration par `.env` ne fonctionne pas.** `config.php` lit le
-   fichier `.env` avec `putenv()`, mais `SupabaseClient::init()` cherche les
-   valeurs dans `$GLOBALS['env']`, que `putenv()` ne remplit pas. Avec un `.env`
-   seul, le site s'arrête sur « variables manquantes ». Seul `env.local.php`
-   fonctionne. Correction possible dans `config.php` : ajouter
-   `$env[trim($cle)] = trim($valeur);` dans la boucle.
-2. **`database/creer_admin.php` ne fonctionne plus** : il charge
-   `app/Core/Database.php`, qui a été supprimé. À réécrire avec
-   `Utilisateur::creer('Administrateur', $email, $motDePasse, 'admin')`.
-3. **Petit avertissement possible à l'inscription** : la ligne
-   `$_POST['ville_id'] !== ''` provoque un avertissement si le champ est absent
-   du formulaire. Écrire `($_POST['ville_id'] ?? '') !== ''`.
-4. **Les erreurs sont affichées à l'écran** (`display_errors = 1`). Sur un site
-   public, cela révèle des chemins internes. À désactiver en ligne.
-5. **Pas de protection CSRF.** Un site malveillant pourrait faire envoyer, à
-   l'insu d'un admin connecté, le formulaire de suppression d'une ville. La
-   parade classique est un **jeton** secret placé dans chaque formulaire et
-   vérifié à la réception.
-6. **La session n'est pas renouvelée à la connexion.** Ajouter
-   `session_regenerate_id(true)` dans `Auth::connecter()` protège contre la
-   « fixation de session ».
-7. **Code en double :** `Epreuve::aplatir()` et `Equipe::aplatir()` font la
-   même chose. On pourrait n'en garder qu'une.
-8. **Ligne sans effet** dans `MembreEquipe::parUtilisateur` :
-   `$ligne['equipe_id'] = $ligne['equipe_id'] ?? null;`.
-9. **Méthodes prêtes mais pas encore branchées :** `Ville::modifier`,
-   `Equipe::parVille`, `Epreuve::creer/changerStatut/supprimer`,
-   `Sport::creer/supprimer`, toutes les méthodes d'écriture de `MembreEquipe`
-   et `Participation`, `SupabaseClient::rpc`. Elles attendent les pages
-   d'administration correspondantes.
-10. **La clé `service_role`** donne tous les droits sur la base. Elle ne doit
-    exister que sur le serveur, dans `env.local.php`, protégé par `.htaccess`.
-11. **Arrêts brutaux par `die()`** dans `SupabaseClient` : simple, mais
-    l'utilisateur voit un message technique. Une gestion d'erreur avec une page
-    propre serait plus agréable.
-12. **Le routeur ne protège pas les caractères spéciaux** des chemins
-    (`preg_quote`). Sans conséquence avec les routes actuelles.
+### 13.1 Problèmes corrigés
+
+| Problème d'origine | Correction apportée |
+|---|---|
+| **La configuration par `.env` ne fonctionnait pas** : `config.php` remplissait `putenv()` mais `SupabaseClient` lisait `$GLOBALS['env']`. | `config.php` remplit maintenant `$env` **et** `putenv()` ; `SupabaseClient::init()` retombe sur `getenv()` si besoin (4.3, 5.5). |
+| **`creer_admin.php` chargeait un fichier disparu** (`Database.php`). | Réécrit avec `Utilisateur::creer()` et le rôle `super_admin` (10.5). |
+| **Avertissement possible** sur `$_POST['ville_id'] !== ''` si le champ manquait. | Lecture via `champEntier()`, qui gère l'absence (5.3). |
+| **Pas de protection CSRF.** | Jeton par session (`Csrf`), champ caché dans tous les formulaires, vérification centrale dans le routeur (5.6, 5.2). |
+| **Session non renouvelée à la connexion.** | `session_regenerate_id(true)` dans `Auth::connecter()` (5.4). |
+| **Arrêts brutaux par `die()`** dans `SupabaseClient` et `Auth`. | Exceptions `SupabaseException` attrapées par `index.php` (page 500) ou par les contrôleurs (message flash) ; page 403 propre (5.8, 4.1). |
+| **Ligne sans effet** dans `MembreEquipe::parUtilisateur`. | Supprimée. |
+| **Méthodes prêtes mais non branchées** (création d'épreuves, d'équipes, membres, participations…). | Toutes utilisées par l'espace d'administration (section 8). |
+| **Email non vérifié** à l'inscription. | `filter_var(..., FILTER_VALIDATE_EMAIL)` à l'inscription et dans l'administration. |
+
+### 13.2 Points restants
+
+1. **Les erreurs sont affichées à l'écran** (`display_errors = 1` dans
+   `config.php`). Sur un site public, cela révèle des chemins internes. À passer
+   à `'0'` en ligne (le `try/catch` d'`index.php` affiche déjà une page propre).
+2. **La clé `service_role`** donne tous les droits sur la base. Elle ne doit
+   exister que sur le serveur, dans `env.local.php`, protégé par `.htaccess`.
+3. **Code en double :** `Epreuve::aplatir()`, `Equipe::aplatir()` et
+   `Utilisateur::aplatir()` se ressemblent beaucoup. Un **trait** PHP (morceau de
+   classe réutilisable) permettrait de n'écrire l'aplatissement qu'une fois.
+4. **La ville d'un manager est lue en session.** Si un super admin change la
+   ville d'un manager pendant que celui-ci est connecté, le manager continue de
+   voir son ancienne ville jusqu'à sa prochaine connexion. Recharger le compte
+   depuis la base à chaque requête corrigerait cela, au prix d'une requête
+   supplémentaire.
+5. **Le tableau de bord compte en chargeant des listes entières**
+   (`count(Ville::toutes())`). Négligeable pour un championnat, mais avec des
+   milliers de lignes on demanderait plutôt à PostgREST de compter
+   (en-tête `Prefer: count=exact`).
+6. **La page « Ma ville » fait une requête par équipe** pour trouver les
+   inscriptions en attente. Là encore acceptable à cette échelle ; une vue SQL
+   ferait mieux.
+7. **Le routeur ne protège pas les caractères spéciaux** des chemins
+   (`preg_quote`). Sans conséquence avec les routes actuelles.
+8. **Pas de pagination** dans les listes d'administration.
+9. **Migration à exécuter** : sans `migration_roles.sql`, la base peut refuser
+   les rôles `manager` et `super_admin` si une contrainte limite la colonne
+   `role`. Les anciens comptes `admin` continuent de fonctionner comme super
+   admins en attendant.
 
 ---
 
@@ -2496,7 +3369,13 @@ importance et expliquées simplement.
 | **Cast** | Conversion de type, ex. `(int) "3"` → `3`. |
 | **Classe / méthode** | Une classe regroupe des fonctions (méthodes) apparentées. |
 | **Clé étrangère** | Colonne qui contient l'`id` d'une ligne d'une autre table. |
+| **Constante de classe** | Valeur fixe nommée dans une classe (`Auth::ROLE_MANAGER`) ; évite les fautes de frappe sur des chaînes répétées. |
 | **Constructeur** | Méthode `__construct()` exécutée automatiquement à la création d'un objet. |
+| **Déstructuration** | `[$a, $b] = $liste;` range d'un coup plusieurs valeurs d'une liste dans des variables. |
+| **Exception** | Signal d'erreur levé par `throw` et attrapé par `try { } catch { }` ; permet de gérer l'erreur là où l'on sait quoi faire. |
+| **Fonction fléchée** | `fn($x) => $x * 2` : fonction anonyme sur une ligne, très utilisée avec `array_map` et `array_filter`. |
+| **Jeton CSRF** | Chaîne secrète liée à la session, glissée dans chaque formulaire pour prouver qu'il vient bien de notre site. |
+| **Message flash** | Message stocké en session pour être affiché une seule fois sur la page suivante. |
 | **Contrôleur** | Dans MVC, la partie qui reçoit la requête et coordonne modèle et vue. |
 | **Cookie** | Petit fichier que le navigateur renvoie au serveur à chaque requête ; sert à retrouver la session. |
 | **CRUD** | Create, Read, Update, Delete : les quatre opérations de base sur des données. |
@@ -2528,6 +3407,7 @@ importance et expliquées simplement.
 | **Superglobale** | Variable PHP accessible partout : `$_POST`, `$_SESSION`, `$_SERVER`, `$GLOBALS`. |
 | **Supabase** | Service en ligne qui héberge une base PostgreSQL et l'expose en API. |
 | **Table d'association** | Table qui relie deux autres tables (plusieurs-à-plusieurs), ex. `membre_equipe`. |
+| **Trait** | Morceau de classe (méthodes) que plusieurs classes peuvent inclure avec `use`, pour partager du code sans héritage. |
 | **Tableau (array)** | Une liste ou une fiche de valeurs. |
 | **Tableau associatif** | Un tableau dont les cases ont un nom (`['nom' => 'X']`). |
 | **Variable** | Une boîte nommée contenant une valeur, précédée de `$` en PHP. |

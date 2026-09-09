@@ -3,12 +3,15 @@ class AuthController extends Controller
 {
     public function afficherLogin(): void
     {
+        if (Auth::estConnecte()) {
+            $this->rediriger($this->pageApresConnexion());
+        }
         $this->afficher('auth/login', ['titre' => 'Connexion', 'erreur' => null]);
     }
 
     public function traiterLogin(): void
     {
-        $email = trim($_POST['email'] ?? '');
+        $email = $this->champ('email');
         $motDePasse = $_POST['mot_de_passe'] ?? '';
 
         $utilisateur = Utilisateur::verifierIdentifiants($email, $motDePasse);
@@ -22,8 +25,19 @@ class AuthController extends Controller
         }
 
         Auth::connecter($utilisateur);
-        header('Location: /');
-        exit;
+        $this->rediriger($this->pageApresConnexion());
+    }
+
+    /** Chaque rôle arrive sur "sa" page d'accueil après connexion */
+    private function pageApresConnexion(): string
+    {
+        if (Auth::estSuperAdmin()) {
+            return '/admin';
+        }
+        if (Auth::estManager()) {
+            return '/gestion';
+        }
+        return '/';
     }
 
     public function afficherInscription(): void
@@ -37,15 +51,17 @@ class AuthController extends Controller
 
     public function traiterInscription(): void
     {
-        $nomCompte = trim($_POST['nom_compte'] ?? '');
-        $email = trim($_POST['email'] ?? '');
+        $nomCompte = $this->champ('nom_compte');
+        $email = $this->champ('email');
         $motDePasse = $_POST['mot_de_passe'] ?? '';
         $motDePasseConfirmation = $_POST['mot_de_passe_confirmation'] ?? '';
-        $villeId = $_POST['ville_id'] !== '' ? (int) $_POST['ville_id'] : null;
+        $villeId = $this->champEntier('ville_id');
 
         $erreur = null;
         if ($nomCompte === '' || $email === '' || $motDePasse === '') {
             $erreur = 'Tous les champs marqués * sont obligatoires.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $erreur = 'L\'adresse email n\'est pas valide.';
         } elseif ($motDePasse !== $motDePasseConfirmation) {
             $erreur = 'Les deux mots de passe ne correspondent pas.';
         } elseif (strlen($motDePasse) < 8) {
@@ -63,18 +79,18 @@ class AuthController extends Controller
             return;
         }
 
-        $id = Utilisateur::creer($nomCompte, $email, $motDePasse, 'joueur', $villeId);
+        // L'inscription publique crée toujours un simple joueur : les managers
+        // et super admins sont créés par un super admin depuis /admin/utilisateurs
+        $id = Utilisateur::creer($nomCompte, $email, $motDePasse, Auth::ROLE_JOUEUR, $villeId);
         $utilisateur = Utilisateur::trouver($id);
 
         Auth::connecter($utilisateur);
-        header('Location: /profil');
-        exit;
+        $this->rediriger('/profil');
     }
 
     public function deconnexion(): void
     {
         Auth::deconnecter();
-        header('Location: /');
-        exit;
+        $this->rediriger('/');
     }
 }

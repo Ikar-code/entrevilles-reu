@@ -1,32 +1,48 @@
 <?php
 /**
- * Script à lancer UNE FOIS pour créer le premier compte admin.
+ * Script à lancer UNE FOIS, en ligne de commande, pour créer le premier
+ * compte SUPER ADMINISTRATEUR (l'inscription publique ne crée que des joueurs).
  *
- * IMPORTANT : exécute d'abord database/schema.sql PUIS
- * database/migration_mot_de_passe.sql dans Supabase avant de lancer ce
- * script (la colonne mot_de_passe n'existe pas dans le schéma d'origine).
+ * Prérequis : avoir exécuté dans Supabase, dans l'ordre,
+ *   1. le schéma d'origine,
+ *   2. database/migration_mot_de_passe.sql,
+ *   3. database/migration_roles.sql,
+ * et avoir créé config/env.local.php (ou .env) avec SUPABASE_URL / SUPABASE_KEY.
  *
- * Utilisation : php database/creer_admin.php
+ * Utilisation :
+ *   php database/creer_admin.php
+ *   php database/creer_admin.php admin@exemple.re MonMotDePasse "Prénom Nom"
+ *
  * Supprime ce fichier une fois utilisé — ne le laisse jamais accessible
- * publiquement en production.
+ * publiquement en production (le dossier database/ est déjà protégé par .htaccess).
  */
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Ce script ne s\'exécute qu\'en ligne de commande.');
+}
+
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../app/Core/Database.php';
+require_once __DIR__ . '/../app/Core/autoload.php';
 
-$nomCompte = 'Administrateur';
-$email = 'admin@entrevilles-reu.re';
-$motDePasseClair = 'changez-moi123'; // change-le juste après ta première connexion
+$email           = $argv[1] ?? 'admin@entrevilles-reu.re';
+$motDePasseClair = $argv[2] ?? 'changez-moi123'; // change-le juste après ta première connexion
+$nomCompte       = $argv[3] ?? 'Super administrateur';
 
-$hash = password_hash($motDePasseClair, PASSWORD_DEFAULT);
+if (strlen($motDePasseClair) < 8) {
+    echo "Le mot de passe doit faire au moins 8 caractères.\n";
+    exit(1);
+}
 
-$pdo = Database::connexion();
-$stmt = $pdo->prepare(
-    "INSERT INTO utilisateur (email, nom_compte, role, mot_de_passe)
-     VALUES (:email, :nom_compte, 'admin', :hash)
-     ON CONFLICT (email) DO NOTHING"
-);
-$stmt->execute(['email' => $email, 'nom_compte' => $nomCompte, 'hash' => $hash]);
+$existant = Utilisateur::trouverParEmail($email);
+if ($existant !== null) {
+    echo "Un compte existe déjà avec l'email $email (rôle : {$existant['role']}).\n";
+    echo "Pour le passer super admin, exécute dans Supabase :\n";
+    echo "  UPDATE utilisateur SET role = 'super_admin' WHERE email = '$email';\n";
+    exit(1);
+}
 
-echo "Compte admin créé (ou déjà existant) : $email / $motDePasseClair\n";
-echo "Pense à supprimer ce fichier une fois utilisé.\n";
+$id = Utilisateur::creer($nomCompte, $email, $motDePasseClair, Auth::ROLE_SUPER_ADMIN);
+
+echo "Super administrateur créé (id $id) : $email / $motDePasseClair\n";
+echo "Connecte-toi sur /login, change ce mot de passe depuis /admin/utilisateurs, puis supprime ce fichier.\n";

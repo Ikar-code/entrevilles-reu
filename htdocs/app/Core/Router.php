@@ -1,7 +1,7 @@
 <?php
 /**
  * Routeur minimaliste : associe une URL à [Contrôleur, méthode].
- * Toutes les requêtes passent par public/index.php qui appelle Router::traiter().
+ * Toutes les requêtes passent par index.php qui appelle Router::traiter().
  */
 class Router
 {
@@ -32,6 +32,14 @@ class Router
         $methode = $_SERVER['REQUEST_METHOD'];
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $uri = rtrim($uri, '/') ?: '/';
+
+        // Tout formulaire POST doit porter le jeton CSRF de la session (voir Core/Csrf.php)
+        if ($methode === 'POST' && !Csrf::verifier()) {
+            http_response_code(403);
+            $motifRefus = 'Formulaire invalide ou expiré (jeton de sécurité manquant). Recharge la page et réessaie.';
+            require __DIR__ . '/../Views/erreur_403.php';
+            return;
+        }
 
         foreach (self::$routes as $route) {
             if ($route['methode'] !== $methode) {
