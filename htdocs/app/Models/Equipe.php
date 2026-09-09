@@ -1,6 +1,8 @@
 <?php
 class Equipe
 {
+    private const EMBED = '*,ville:ville_id(nom),sport:sport_id(nom)';
+
     /** Aplati les objets imbriqués ville:{nom} et sport:{nom} en ville_nom / sport_nom */
     private static function aplatir(array $ligne): array
     {
@@ -12,28 +14,28 @@ class Equipe
 
     public static function toutes(): array
     {
-        $lignes = SupabaseClient::select(
-            'equipe',
-            '*,ville:ville_id(nom),sport:sport_id(nom)',
-            [],
-            'nom.asc'
-        );
+        $lignes = SupabaseClient::select('equipe', self::EMBED, [], 'nom.asc');
         return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function trouver(int $id): ?array
     {
-        $resultats = SupabaseClient::select(
-            'equipe',
-            '*,ville:ville_id(nom),sport:sport_id(nom)',
-            ['id' => 'eq.' . $id]
-        );
+        $resultats = SupabaseClient::select('equipe', self::EMBED, ['id' => 'eq.' . $id]);
         return isset($resultats[0]) ? self::aplatir($resultats[0]) : null;
     }
 
+    /** Équipes d'une ville (espace manager) */
     public static function parVille(int $villeId): array
     {
-        return SupabaseClient::select('equipe', '*', ['ville_id' => 'eq.' . $villeId], 'nom.asc');
+        $lignes = SupabaseClient::select('equipe', self::EMBED, ['ville_id' => 'eq.' . $villeId], 'nom.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
+    }
+
+    /** Équipes pratiquant un sport (sert à vérifier avant de supprimer un sport) */
+    public static function parSport(int $sportId): array
+    {
+        $lignes = SupabaseClient::select('equipe', self::EMBED, ['sport_id' => 'eq.' . $sportId], 'nom.asc');
+        return array_map([self::class, 'aplatir'], $lignes);
     }
 
     public static function creer(string $nom, int $villeId, int $sportId): int
@@ -42,6 +44,13 @@ class Equipe
             'nom' => $nom, 'ville_id' => $villeId, 'sport_id' => $sportId,
         ]);
         return (int) $ligne['id'];
+    }
+
+    public static function modifier(int $id, string $nom, int $villeId, int $sportId): void
+    {
+        SupabaseClient::update('equipe', ['id' => 'eq.' . $id], [
+            'nom' => $nom, 'ville_id' => $villeId, 'sport_id' => $sportId,
+        ]);
     }
 
     public static function supprimer(int $id): void

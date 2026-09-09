@@ -7,6 +7,10 @@
  * Utilise l'API REST auto-générée par Supabase pour chaque table :
  * GET/POST/PATCH/DELETE sur https://<projet>.supabase.co/rest/v1/<table>
  *
+ * En cas d'erreur (réseau, clé invalide, contrainte violée…), lève une
+ * SupabaseException. Non attrapée, elle remonte jusqu'à index.php qui
+ * affiche la page erreur_500.
+ *
  * Documentation Supabase REST : https://supabase.com/docs/guides/api
  */
 class SupabaseClient
@@ -17,11 +21,15 @@ class SupabaseClient
     private static function init(): void
     {
         if (self::$url === null) {
-            self::$url = rtrim((string) ($GLOBALS['env']['SUPABASE_URL'] ?? ''), '/');
-            self::$key = (string) ($GLOBALS['env']['SUPABASE_KEY'] ?? '');
+            // Source 1 : $env défini par config/env.local.php ; source 2 : variables d'environnement (.env)
+            $url = ($GLOBALS['env']['SUPABASE_URL'] ?? '') ?: (getenv('SUPABASE_URL') ?: '');
+            $key = ($GLOBALS['env']['SUPABASE_KEY'] ?? '') ?: (getenv('SUPABASE_KEY') ?: '');
+
+            self::$url = rtrim((string) $url, '/');
+            self::$key = (string) $key;
 
             if (self::$url === '' || self::$key === '') {
-                die('Erreur de connexion à la base de données : variables SUPABASE_URL / SUPABASE_KEY manquantes.');
+                throw new SupabaseException('Variables SUPABASE_URL / SUPABASE_KEY manquantes (voir config/config.php).');
             }
         }
     }
@@ -64,14 +72,14 @@ class SupabaseClient
         if ($reponse === false) {
             $erreur = curl_error($ch);
             curl_close($ch);
-            die('Erreur de connexion à la base de données : ' . $erreur);
+            throw new SupabaseException('Connexion à la base de données impossible : ' . $erreur);
         }
 
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($code >= 400) {
-            die('Erreur base de données (HTTP ' . $code . ') : ' . $reponse);
+            throw new SupabaseException(self::messageErreur($reponse, $code), $code);
         }
 
         if ($reponse === '' || $reponse === null) {
@@ -80,6 +88,14 @@ class SupabaseClient
 
         $donnees = json_decode($reponse, true);
         return is_array($donnees) ? $donnees : [];
+    }
+
+    /** Extrait un message lisible de la réponse d'erreur JSON de PostgREST */
+    private static function messageErreur(string $reponse, int $code): string
+    {
+        $json = json_decode($reponse, true);
+        $message = is_array($json) ? ($json['message'] ?? $json['details'] ?? $reponse) : $reponse;
+        return 'Erreur base de données (HTTP ' . $code . ') : ' . $message;
     }
 
     /**

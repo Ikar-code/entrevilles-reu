@@ -5,6 +5,8 @@
 <?php endif; ?>
 
 <form method="POST" action="/inscription">
+    <?= Csrf::champ() ?>
+
     <label for="nom_compte">Nom / pseudo *</label>
     <input type="text" id="nom_compte" name="nom_compte" required value="<?= htmlspecialchars($_POST['nom_compte'] ?? '') ?>">
 
@@ -15,7 +17,7 @@
     <select id="ville_id" name="ville_id">
         <option value="">— Aucune —</option>
         <?php foreach ($villes as $ville): ?>
-            <option value="<?= $ville['id'] ?>"><?= htmlspecialchars($ville['nom']) ?></option>
+            <option value="<?= (int) $ville['id'] ?>" <?= (string) ($_POST['ville_id'] ?? '') === (string) $ville['id'] ? 'selected' : '' ?>><?= htmlspecialchars($ville['nom']) ?></option>
         <?php endforeach; ?>
     </select>
 

@@ -294,3 +294,117 @@ button:hover, .bouton:hover {
     h1 { font-size: 2rem; }
     .conteneur { padding: 28px 16px; }
 }
+
+/* --- Espace d'administration --- */
+
+.menu-admin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--bordure);
+}
+
+.menu-admin a {
+    padding: 7px 14px;
+    border-radius: 4px;
+    color: var(--texte-doux);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.menu-admin a:hover, .menu-admin a.actif { color: var(--cyan); background: var(--panneau-alt); }
+
+.grille-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+    margin: 20px 0 28px;
+}
+
+.stat {
+    display: block;
+    background: var(--panneau);
+    border: 1px solid var(--bordure);
+    border-radius: 6px;
+    padding: 16px;
+    color: var(--texte);
+    transition: border-color 0.15s;
+}
+
+.stat:hover { border-color: var(--cyan); color: var(--texte); }
+.stat strong { display: block; font-family: 'Rajdhani', sans-serif; font-size: 2rem; color: var(--cyan); line-height: 1; }
+.stat span { color: var(--texte-doux); font-size: 0.85rem; }
+
+.texte-doux { color: var(--texte-doux); font-size: 0.9rem; }
+.lien-secondaire { margin-top: 16px; font-size: 0.9rem; }
+
+/* Messages flash (après une redirection) */
+.flash {
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin: 0 0 18px;
+    font-size: 0.92rem;
+    max-width: none;
+}
+.flash-succes { background: rgba(45, 225, 194, 0.12); border: 1px solid rgba(45, 225, 194, 0.4); color: var(--cyan-vif); }
+.flash-erreur { background: rgba(255, 77, 109, 0.1); border: 1px solid rgba(255, 77, 109, 0.35); color: var(--rose); }
+
+/* Formulaires en ligne dans les tableaux (boutons Supprimer, changement de statut…) */
+form.form-inline {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    vertical-align: middle;
+}
+form.form-inline input, form.form-inline select { padding: 6px 8px; font-size: 0.88rem; }
+form.form-large { max-width: 720px; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.bouton-petit, form.form-inline button { padding: 6px 12px; font-size: 0.9rem; }
+
+.bouton-secondaire {
+    background: var(--panneau-alt);
+    color: var(--texte);
+    border: 1px solid var(--bordure-vive);
+}
+.bouton-secondaire:hover { background: var(--panneau); color: var(--cyan); border-color: var(--cyan); box-shadow: none; }
+
+.bouton-danger { background: var(--rose); color: #fff; }
+.bouton-danger:hover { background: #ff6b85; box-shadow: 0 0 20px rgba(255, 77, 109, 0.35); }
+
+/* Badges de rôle et de statut d'inscription */
+.badge-super_admin, .badge-admin {
+    background: rgba(139, 92, 246, 0.15);
+    color: #B79CFF;
+    border: 1px solid rgba(139, 92, 246, 0.45);
+}
+.badge-manager {
+    background: rgba(245, 185, 66, 0.12);
+    color: var(--or);
+    border: 1px solid rgba(245, 185, 66, 0.4);
+}
+.badge-joueur {
+    background: var(--panneau-alt);
+    color: var(--texte-doux);
+    border: 1px solid var(--bordure-vive);
+}
+.badge-validee {
+    background: rgba(45, 225, 194, 0.12);
+    color: var(--cyan-vif);
+    border: 1px solid rgba(45, 225, 194, 0.4);
+}
+.badge-en_attente {
+    background: rgba(245, 185, 66, 0.12);
+    color: var(--or);
+    border: 1px solid rgba(245, 185, 66, 0.4);
+}
