@@ -373,11 +373,13 @@ on touche seulement la vue. Pour changer une règle métier, seulement le modèl
 ```
 entrevilles-reu-main/
 ├── .github/workflows/deploy.yml     Mise en ligne automatique (section 12)
+├── README.md                        Cette documentation
 └── htdocs/                          Racine du site (le seul dossier visible par le serveur)
     ├── index.php                    LA porte d'entrée : toutes les requêtes passent ici
     ├── .htaccess                    Règle Apache : « tout envoyer vers index.php »
     ├── .env.example                 Modèle de fichier de configuration
-    ├── assets/css/style.css         La mise en forme (couleurs, polices…)
+    ├── assets/css/style.css         La mise en forme (couleurs, polices, thème clair/sombre)
+    ├── assets/js/theme.js           Le bouton clair / sombre (seul script JavaScript)
     ├── config/
     │   ├── .htaccess                Interdit de lire ce dossier depuis le navigateur
     │   └── config.php               Charge les clés Supabase, démarre la session
@@ -2177,11 +2179,27 @@ class AccueilController extends Controller
 {
     public function index(): void
     {
-        $epreuvesAVenir = Epreuve::aVenir();
+        $villes    = Ville::toutes();
+        $sports    = Sport::tous();
+        $equipes   = Equipe::toutes();
+        $epreuves  = Epreuve::toutes();
+
+        $epreuvesParStatut = ['a_venir' => 0, 'en_cours' => 0, 'terminee' => 0];
+        foreach ($epreuves as $epreuve) {
+            $statut = $epreuve['statut'] ?? null;
+            if (isset($epreuvesParStatut[$statut])) {
+                $epreuvesParStatut[$statut]++;
+            }
+        }
 
         $this->afficher('accueil/index', [
-            'titre'          => 'Accueil',
-            'epreuvesAVenir' => $epreuvesAVenir,
+            'titre'             => 'Accueil',
+            'nombreVilles'      => count($villes),
+            'nombreSports'      => count($sports),
+            'nombreEquipes'     => count($equipes),
+            'nombreEpreuves'    => count($epreuves),
+            'epreuvesParStatut' => $epreuvesParStatut,
+            'epreuvesAVenir'    => Epreuve::aVenir(),
         ]);
     }
 }
@@ -2190,7 +2208,10 @@ class AccueilController extends Controller
 #### `index(): void`
 
 - **Page :** `/`.
-- **Comment ça marche :** demande au modèle les épreuves à venir, puis affiche la vue `accueil/index` en lui passant `titre` (utilisé dans l'onglet du navigateur) et `epreuvesAVenir`.
+- **Comment ça marche :**
+  1. Charge les quatre listes (villes, sports, équipes, épreuves) pour afficher des compteurs avec `count()`.
+  2. `$epreuvesParStatut` commence avec trois compteurs à zéro. La boucle parcourt les épreuves et incrémente (`++` = « ajoute 1 ») la case correspondant à son statut. Le `isset(...)` ignore un statut inconnu au lieu de créer une case par erreur.
+  3. Affiche la vue `accueil/index` avec `titre` (utilisé dans l'onglet du navigateur), les quatre nombres, la répartition par statut et les épreuves à venir.
 
 ### 8.2 `AuthController.php` — connexion, inscription, déconnexion
 
@@ -2744,8 +2765,10 @@ visiteurs (attaque **XSS**).
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
     <title><?= isset($titre) ? htmlspecialchars($titre) . ' — ' : '' ?>Entrevilles-Reu</title>
     <link rel="stylesheet" href="/assets/css/style.css">
+    <script src="/assets/js/theme.js"></script>
 </head>
 <body>
     <?php require __DIR__ . '/navbar.php'; ?>
@@ -2769,7 +2792,9 @@ visiteurs (attaque **XSS**).
 | `<meta charset="UTF-8">` | Encodage des caractères (accents). |
 | `<meta name="viewport" ...>` | Adaptation aux écrans de téléphone. |
 | `<title>...` | Le titre de l'onglet : « Équipes — Entrevilles-Reu » si `$titre` existe, sinon juste « Entrevilles-Reu ». |
+| `<meta name="color-scheme" content="dark light">` | Prévient le navigateur que la page existe en sombre et en clair. |
 | `<link rel="stylesheet" ...>` | Charge la feuille de style. |
+| `<script src="/assets/js/theme.js">` | Charge le script du thème **dans l'entête**, avant l'affichage, pour appliquer tout de suite le thème mémorisé (section 11.3). |
 | `require navbar.php` | Insère la barre de navigation. |
 | `foreach (Flash::recuperer() as $flash)` | Affiche les messages laissés par la page précédente (« Ville créée. »), un bandeau par message, puis les efface (voir 5.7). |
 | `<main class="conteneur">` + `require $cheminVue` | Insère **la vue demandée** par le contrôleur (`$cheminVue` vient de `Controller::afficher`). |
@@ -2780,33 +2805,48 @@ visiteurs (attaque **XSS**).
 #### `navbar.php` — la barre de navigation
 
 ```php
+<?php
+$uriNav = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$lienActif = function (string ...$chemins) use ($uriNav): string {
+    foreach ($chemins as $chemin) {
+        if ($uriNav === $chemin || ($chemin !== '/' && str_starts_with($uriNav, $chemin . '/'))) {
+            return 'actif';
+        }
+    }
+    return '';
+};
+?>
 <nav class="navbar">
     <a href="/" class="navbar-logo">Entrevilles-Reu 🏝️</a>
     <div class="navbar-liens">
-        <a href="/">Accueil</a>
-        <a href="/planning">Planning</a>
-        <a href="/equipes">Équipes</a>
-        <a href="/classement">Classement</a>
+        <a href="/" class="<?= $lienActif('/') ?>">Accueil</a>
+        <a href="/planning" class="<?= $lienActif('/planning', '/epreuves') ?>">Planning</a>
+        <a href="/equipes" class="<?= $lienActif('/equipes') ?>">Équipes</a>
+        <a href="/classement" class="<?= $lienActif('/classement') ?>">Classement</a>
 
         <?php if (Auth::estConnecte()): ?>
             <?php if (Auth::estSuperAdmin()): ?>
-                <a href="/admin">Administration</a>
+                <a href="/admin" class="<?= $lienActif('/admin') ?>">Administration</a>
             <?php elseif (Auth::estManager()): ?>
-                <a href="/gestion">Ma ville</a>
+                <a href="/gestion" class="<?= $lienActif('/gestion', '/admin') ?>">Ma ville</a>
             <?php endif; ?>
-            <a href="/profil">Profil (<?= htmlspecialchars(Auth::utilisateur()['nom_compte']) ?>)</a>
+            <a href="/profil" class="<?= $lienActif('/profil') ?>">Profil (<?= htmlspecialchars(Auth::utilisateur()['nom_compte']) ?>)</a>
             <a href="/deconnexion">Déconnexion</a>
         <?php else: ?>
-            <a href="/login">Connexion</a>
-            <a href="/inscription">Créer un compte</a>
+            <a href="/login" class="<?= $lienActif('/login') ?>">Connexion</a>
+            <a href="/inscription" class="<?= $lienActif('/inscription') ?>">Créer un compte</a>
         <?php endif; ?>
+
+        <button type="button" id="basculeTheme" class="bouton-theme" aria-pressed="false" title="Passer au thème clair">☀️ Thème clair</button>
     </div>
 </nav>
 ```
 
+- `$lienActif` est une **fonction anonyme** rangée dans une variable. On l'appelle avec un ou plusieurs chemins (`string ...$chemins` = « autant de chemins que l'on veut ») ; elle renvoie `'actif'` si l'adresse de la page en cours est l'un d'eux ou commence par l'un d'eux. Ainsi « Planning » reste surligné sur `/epreuves/5`. `use ($uriNav)` donne à la fonction accès à la variable calculée juste avant.
 - Les quatre premiers liens sont toujours visibles.
 - Si connecté : lien « Administration » (super admin) **ou** « Ma ville » (manager), puis « Profil (pseudo) », « Déconnexion ».
 - Sinon : « Connexion », « Créer un compte ».
+- Le bouton `#basculeTheme` change de thème : son texte (« ☀️ Thème clair » ou « 🌙 Thème sombre ») est mis à jour par `theme.js` (section 11.3). `type="button"` évite qu'il soit pris pour un bouton d'envoi de formulaire.
 - La barre ne reçoit aucune variable : elle interroge directement `Auth`.
 
 #### `footer.php`
@@ -2856,43 +2896,75 @@ Pages complètes et autonomes (avec leur propre `<html>`) :
 
 ### 9.2 Les vues de pages
 
-#### `accueil/index.php` — variable : `$epreuvesAVenir`
+#### `accueil/index.php` — variables : `$nombreVilles`, `$nombreSports`, `$nombreEquipes`, `$nombreEpreuves`, `$epreuvesParStatut`, `$epreuvesAVenir`
 
 ```php
 <div class="hero">
     <div class="hero-contenu">
-        <h1>Le défi sportif des communes de La Réunion</h1>
+        <span class="hero-surtitre">Championnat inter-communes · La Réunion</span>
+        <h1>Le défi sportif des <span>communes</span> de La Réunion</h1>
         <p>Épreuves, équipes et classement inter-villes, en direct.</p>
+        <div class="hero-actions">
+            <a href="/planning" class="bouton">Voir le planning</a>
+            <a href="/classement" class="bouton bouton-secondaire">Classement général</a>
+        </div>
     </div>
+</div>
+
+<h2>En chiffres</h2>
+
+<div class="grille-cartes grille-chiffres">
+    <div class="carte carte-chiffre">
+        <span class="chiffre"><?= (int) $nombreVilles ?></span>
+        <p>Villes participantes</p>
+    </div>
+    <!-- … même chose pour les sports, les équipes et les épreuves -->
+</div>
+
+<h2>Épreuves par statut</h2>
+
+<div class="grille-cartes grille-chiffres">
+    <div class="carte carte-chiffre">
+        <span class="badge badge-a_venir">À venir</span>
+        <span class="chiffre"><?= (int) $epreuvesParStatut['a_venir'] ?></span>
+        <p>épreuves programmées</p>
+    </div>
+    <!-- … idem pour en_cours et terminee -->
 </div>
 
 <h2>Prochaines épreuves</h2>
 
 <?php if (empty($epreuvesAVenir)): ?>
-    <p>Aucune épreuve à venir pour le moment.</p>
+    <div class="etat-vide">
+        <p>Aucune épreuve à venir pour le moment.</p>
+        <a href="/planning" class="bouton bouton-secondaire">Voir tout le planning</a>
+    </div>
 <?php else: ?>
     <div class="grille-cartes">
         <?php foreach ($epreuvesAVenir as $epreuve): ?>
             <div class="carte">
                 <span class="badge badge-<?= htmlspecialchars($epreuve['statut']) ?>">
-                    <?= htmlspecialchars($epreuve['statut']) ?>
+                    <?= htmlspecialchars(Epreuve::STATUTS[$epreuve['statut']] ?? $epreuve['statut']) ?>
                 </span>
                 <h3><?= htmlspecialchars($epreuve['sport_nom']) ?></h3>
                 <p>À <?= htmlspecialchars($epreuve['ville_nom']) ?></p>
                 <?php if ($epreuve['date_heure']): ?>
-                    <p><?= (new DateTime($epreuve['date_heure']))->format('d/m/Y à H:i') ?></p>
+                    <p><?= Format::dateHeure($epreuve['date_heure'], 'd/m/Y à H:i') ?></p>
                 <?php endif; ?>
-                <a href="/epreuves/<?= $epreuve['id'] ?>" class="bouton">Voir le détail</a>
+                <a href="/epreuves/<?= (int) $epreuve['id'] ?>" class="bouton">Voir le détail</a>
             </div>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
 ```
 
-- `empty($epreuvesAVenir)` : « la liste est-elle vide ? » → message, sinon grille.
+- La **bannière** (`.hero`) : un surtitre, un titre dont le mot « communes » est coloré (`<span>`), et deux boutons d'action vers le planning et le classement.
+- **En chiffres** : quatre cartes-compteurs (`.carte-chiffre`) avec le nombre en grand (`.chiffre`) et un libellé. `(int)` garantit qu'on affiche un nombre.
+- **Épreuves par statut** : trois cartes du même type, avec un badge coloré en plus. La valeur vient de `$epreuvesParStatut['a_venir']`, calculée par le contrôleur.
+- `empty($epreuvesAVenir)` : « la liste est-elle vide ? » → bloc « état vide » avec un bouton, sinon grille.
 - `foreach` : une carte par épreuve.
-- `class="badge badge-<?= statut ?>"` : la classe CSS est construite à partir du statut (`badge-a_venir`), ce qui donne sa couleur au badge.
-- `new DateTime($epreuve['date_heure'])` : transforme la date brute de la base (`2026-09-20T15:00:00`) en objet date ; `->format('d/m/Y à H:i')` l'écrit « 20/09/2026 à 15:00 ». Le `if` évite une erreur si la date est vide.
+- `class="badge badge-<?= statut ?>"` : la classe CSS est construite à partir du statut (`badge-a_venir`), ce qui donne sa couleur au badge ; le texte affiché est le libellé lisible pris dans `Epreuve::STATUTS`.
+- `Format::dateHeure(...)` écrit la date brute de la base (`2026-09-20T15:00:00`) sous la forme « 20/09/2026 à 15:00 » (voir 5.9).
 - Le lien « Voir le détail » pointe vers `/epreuves/<id>`.
 
 #### `auth/login.php` — variable : `$erreur`
@@ -2962,16 +3034,19 @@ Grille de cartes : nom, ville, sport, bouton « Voir l'équipe ».
 #### `classement/index.php` — variable : `$classement`
 
 ```php
+<?php $medailles = [1 => '🥇', 2 => '🥈', 3 => '🥉']; ?>
 <?php foreach ($classement as $i => $ligne): ?>
-    <tr>
-        <td><?= $i + 1 ?></td>
+    <?php $rang = $i + 1; ?>
+    <tr class="<?= $rang <= 3 ? 'podium podium-' . $rang : '' ?>">
+        <td><?= $rang ?><?= isset($medailles[$rang]) ? ' ' . $medailles[$rang] : '' ?></td>
         <td><?= htmlspecialchars($ligne['ville_nom']) ?></td>
         <td><strong><?= (int) $ligne['total_points'] ?></strong></td>
     </tr>
 <?php endforeach; ?>
 ```
 
-- `foreach ($classement as $i => $ligne)` : `$i` est la position dans la liste (0, 1, 2…), `$ligne` la fiche. Le rang affiché est `$i + 1` (1, 2, 3…) : comme la liste est déjà triée par points, la position **est** le rang.
+- `foreach ($classement as $i => $ligne)` : `$i` est la position dans la liste (0, 1, 2…), `$ligne` la fiche. Le rang est `$i + 1` (1, 2, 3…) : comme la liste est déjà triée par points, la position **est** le rang.
+- `$medailles` : une fiche « rang → emoji ». Pour les trois premiers, la ligne reçoit les classes `podium podium-1` (ou 2, 3), que le CSS colore en or, argent et bronze, et une médaille s'affiche à côté du rang.
 
 ### 9.3 Les vues d'administration
 
@@ -2985,7 +3060,7 @@ Toutes commencent par `require menu_admin.php` et suivent les mêmes motifs :
       <button type="submit" class="bouton-danger">Supprimer</button>
   </form>
   ```
-  `onsubmit="return confirm(...)"` est la seule forme de JavaScript du projet : une boîte « OK / Annuler » ; si l'on annule, rien n'est envoyé. On utilise `POST` (et non un simple lien) pour une suppression, car une action qui modifie des données ne doit jamais se déclencher par un simple clic sur un lien `GET`.
+  `onsubmit="return confirm(...)"` est le seul JavaScript écrit directement dans les vues (le reste est dans `theme.js`) : une boîte « OK / Annuler » ; si l'on annule, rien n'est envoyé. On utilise `POST` (et non un simple lien) pour une suppression, car une action qui modifie des données ne doit jamais se déclencher par un simple clic sur un lien `GET`.
 - **Pré-remplissage après erreur** : `value="<?= htmlspecialchars($saisie['nom'] ?? '') ?>"` et `<?= ... === ... ? 'selected' : '' ?>` sur les options des menus, pour que l'utilisateur ne retape pas tout.
 - **Badges** : `class="badge badge-<?= $valeur ?>"` avec la valeur brute (`super_admin`, `manager`, `en_attente`…) et le libellé lisible pris dans la constante correspondante (`$roles[...]`, `$statuts[...]`).
 
@@ -3196,31 +3271,48 @@ supprimer le fichier.
 
 ## 11. La feuille de style — `assets/css/style.css`
 
-Le CSS décide de l'apparence : couleurs, polices, espacements. Le thème est
-« tableau de bord esport » : fond sombre, accents lumineux cyan et violet.
+Le CSS décide de l'apparence : couleurs, polices, espacements. Le thème par
+défaut est « tableau de bord esport » : fond sombre, accents lumineux cyan et
+violet. Un **thème clair** est disponible via le bouton de la barre de
+navigation.
 
-### 11.1 Les variables de couleur
+### 11.1 Les variables de couleur et le thème clair
 
 En haut du fichier, un bloc `:root { ... }` définit des **variables CSS** : on
 donne un nom à chaque couleur, puis on l'utilise partout avec `var(--nom)`.
 Changer une valeur ici change tout le site.
 
-| Variable | Valeur | Utilisée pour |
-|---|---|---|
-| `--fond` | `#0B0E14` (presque noir) | Le fond de la page |
-| `--panneau` | `#12161F` | Le fond des cartes, tableaux, formulaires |
-| `--panneau-alt` | `#171C27` | Fond au survol, en-têtes de tableau |
-| `--bordure` | blanc à 8 % d'opacité | Bordures discrètes |
-| `--bordure-vive` | blanc à 16 % | Bordures au survol |
-| `--texte` | `#E7E9F0` (blanc cassé) | Texte principal |
-| `--texte-doux` | `#8B93A7` (gris) | Texte secondaire, étiquettes |
-| `--cyan`, `--cyan-vif` | `#2DE1C2`, `#4FF5D8` | Liens, accent principal, badge « à venir » |
-| `--violet` | `#8B5CF6` | Accent secondaire |
-| `--or` | `#F5B942` | Badge « terminée » |
-| `--rose` | `#FF4D6D` | Badge « en cours », badge « Capitaine » |
+| Variable | Sombre | Clair | Utilisée pour |
+|---|---|---|---|
+| `--fond` | `#0B0E14` (presque noir) | `#F4F1EA` (blanc cassé chaud) | Le fond de la page |
+| `--panneau` | `#12161F` | `#FFFFFF` | Le fond des cartes, tableaux, formulaires |
+| `--panneau-alt` | `#171C27` | `#EDE9E0` | Fond au survol, en-têtes de tableau |
+| `--panneau-translucide` | panneau à 85 % | blanc à 85 % | La barre de navigation (effet de flou derrière) |
+| `--bordure`, `--bordure-vive` | blanc à 8 % / 16 % | noir à 10 % / 18 % | Bordures discrètes / au survol |
+| `--texte` | `#E7E9F0` | `#1B1E24` | Texte principal |
+| `--texte-doux` | `#8B93A7` | `#5B6270` | Texte secondaire, étiquettes |
+| `--texte-fort` | `#FFFFFF` | `#0B0E14` | Titres, logo |
+| `--cyan`, `--cyan-vif` | `#2DE1C2`, `#4FF5D8` | `#0E8A75`, `#0AA98E` | Liens, boutons, accent principal, badge « à venir » |
+| `--violet`, `--violet-clair` | `#8B5CF6`, `#B79CFF` | `#6D3FD9`, `#5B32C4` | Accent secondaire, badge super admin |
+| `--or`, `--argent`, `--bronze` | `#F5B942`, `#C0C7D1`, `#D89A5B` | `#B9790C`, `#6B7280`, `#A0522D` | Badge « terminée », manager, podium du classement |
+| `--rose` | `#FF4D6D` | `#D6314F` | Badge « en cours », « Capitaine », bouton Supprimer |
+| `--bouton-texte` | `#06110F` | `#FFFFFF` | Texte d'un bouton cyan (contraste) |
+| `--lueur`, `--ombre` | cyan translucide, ombre noire | cyan translucide, ombre légère | Halo des boutons et cartes au survol |
+| `--halo-cyan`, `--halo-violet` (+ `-fort`) | très transparents | un peu plus présents | Dégradés de fond de page et de bannière |
+| `--rayon` | `8px` | idem | Arrondi commun des cartes, tableaux, formulaires |
 
 Les couleurs `#RRGGBB` sont des codes hexadécimaux : deux chiffres pour le
-rouge, deux pour le vert, deux pour le bleu.
+rouge, deux pour le vert, deux pour le bleu. Les couleurs d'accent sont plus
+**foncées** en clair : un cyan néon lisible sur du noir devient illisible sur
+du blanc.
+
+**Comment marche le thème clair :** juste après `:root`, un second bloc
+`[data-theme="clair"] { ... }` redéfinit **les mêmes variables**. Ce sélecteur
+signifie « l'élément qui porte l'attribut `data-theme="clair"` » ; `theme.js`
+pose cet attribut sur la balise `<html>`. Comme tout le reste de la feuille
+utilise `var(--nom)`, aucune autre règle n'a besoin de changer. La propriété
+`color-scheme` (`dark` ou `light`) indique en plus au navigateur de dessiner
+les menus déroulants et cases natives dans le bon ton.
 
 ### 11.2 Les principales classes
 
@@ -3230,15 +3322,20 @@ Une **classe CSS** est une étiquette posée sur une balise HTML
 | Classe | Rôle |
 |---|---|
 | `.conteneur` | Colonne centrée avec des marges, autour du contenu principal. |
-| `.navbar`, `.navbar-logo`, `.navbar-liens` | La barre de navigation. Sous 640 px de large (téléphone), elle passe en colonne. |
-| `.hero`, `.hero-contenu` | La grande bannière de l'accueil. |
-| `.grille-cartes`, `.carte` | Une grille de cartes qui s'adapte à la largeur ; la carte se soulève légèrement au survol. |
+| `.navbar`, `.navbar-logo`, `.navbar-liens`, `.navbar-liens a.actif` | La barre de navigation, collée en haut (`position: sticky`) avec un fond translucide flouté (`backdrop-filter`). Le lien de la page en cours porte la classe `actif`. Sous 640 px de large (téléphone), elle passe en colonne. |
+| `.bouton-theme` | Le bouton clair / sombre, en forme de pilule, qui annule le style cyan des boutons ordinaires. |
+| `.hero`, `.hero-contenu`, `.hero-surtitre`, `.hero-actions` | La grande bannière de l'accueil : dégradé de fond, deux halos colorés dessinés par `::before` (un pseudo-élément, c'est-à-dire un calque ajouté par le CSS sans balise HTML), surtitre en capitales, boutons d'action. |
+| `.grille-cartes`, `.carte` | Une grille de cartes qui s'adapte à la largeur. Au survol, la carte se soulève (`transform: translateY(-2px)`) et un filet dégradé cyan → violet apparaît en haut (`::before`). |
+| `.grille-chiffres`, `.carte-chiffre`, `.chiffre` | Les cartes-compteurs de l'accueil : grille plus serrée, nombre en grand et en cyan. |
 | `.badge` + `.badge-a_venir` / `.badge-en_cours` / `.badge-terminee` | Les pastilles de statut. Le suffixe correspond **exactement** à la valeur en base, d'où `class="badge badge-<?= $statut ?>"` dans les vues. |
-| `button`, `.bouton` | Les boutons et liens-boutons. |
+| `.podium`, `.podium-1` / `-2` / `-3` | Les trois premières lignes du classement : rang en gras, coloré or, argent ou bronze. |
+| `button`, `.bouton` | Les boutons et liens-boutons. Au survol, la couleur du texte est fixée explicitement : sinon la règle `a:hover` (texte cyan) rendait un lien-bouton illisible sur son fond cyan. |
+| `:focus-visible` | Contour cyan autour de l'élément sélectionné **au clavier** (touche Tab), invisible à la souris : indispensable pour naviguer sans souris. |
 | `.erreur` | Le message d'erreur des formulaires (rouge). |
-| `.etat-vide` | Bloc « aucune donnée » (défini mais pas utilisé par les vues). |
+| `.etat-vide` | Bloc « aucune donnée » en pointillés, utilisé par les pages publiques quand une liste est vide. |
 | `.pied-page` | Le pied de page. |
-| `@media (max-width: 640px)` | Règles spéciales pour les petits écrans. |
+| `@media (max-width: 640px)` | Règles spéciales pour les petits écrans ; les tableaux y défilent horizontalement au lieu de déborder. |
+| `@media (prefers-reduced-motion: reduce)` | Supprime les animations pour les personnes qui les ont désactivées dans leur système. |
 | `.menu-admin`, `.menu-admin a.actif` | Le sous-menu de l'administration ; le lien actif est surligné en cyan. |
 | `.grille-stats`, `.stat` | Les compteurs du tableau de bord (gros chiffre en Rajdhani, libellé en dessous). |
 | `.flash`, `.flash-succes`, `.flash-erreur` | Les bandeaux de message flash (vert cyan ou rouge). |
@@ -3252,6 +3349,96 @@ Une **classe CSS** est une étiquette posée sur une balise HTML
 
 Les polices `Rajdhani` (titres) et `Inter` (texte) sont chargées depuis Google
 Fonts par la ligne `@import` du début.
+
+### 11.3 Le bouton clair / sombre — `assets/js/theme.js`
+
+C'est le seul fichier **JavaScript** du projet. Contrairement au PHP, qui
+s'exécute sur le serveur, le JavaScript s'exécute **dans le navigateur**, une
+fois la page reçue : il peut réagir aux clics et modifier la page sans la
+recharger.
+
+```js
+(function () {
+    var CLE = 'entrevilles-theme';
+    var racine = document.documentElement; // la balise <html>
+
+    function themeMemorise() {
+        try {
+            return localStorage.getItem(CLE);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function memoriser(theme) {
+        try {
+            localStorage.setItem(CLE, theme);
+        } catch (e) {
+        }
+    }
+
+    function appliquer(theme) {
+        if (theme === 'clair') {
+            racine.setAttribute('data-theme', 'clair');
+        } else {
+            racine.removeAttribute('data-theme');
+        }
+    }
+
+    function themeActuel() {
+        return racine.getAttribute('data-theme') === 'clair' ? 'clair' : 'sombre';
+    }
+
+    function mettreAJourBouton(bouton) {
+        var clair = themeActuel() === 'clair';
+        bouton.textContent = clair ? '🌙 Thème sombre' : '☀️ Thème clair';
+        bouton.title = clair ? 'Passer au thème sombre' : 'Passer au thème clair';
+        bouton.setAttribute('aria-pressed', clair ? 'true' : 'false');
+    }
+
+    appliquer(themeMemorise());
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var bouton = document.getElementById('basculeTheme');
+        if (!bouton) {
+            return;
+        }
+
+        mettreAJourBouton(bouton);
+
+        bouton.addEventListener('click', function () {
+            var nouveau = themeActuel() === 'clair' ? 'sombre' : 'clair';
+            appliquer(nouveau);
+            memoriser(nouveau);
+            mettreAJourBouton(bouton);
+        });
+    });
+})();
+```
+
+| Élément | Explication |
+|---|---|
+| `(function () { ... })();` | Tout le code est enfermé dans une fonction exécutée immédiatement : ses variables restent privées et ne risquent pas d'entrer en conflit avec un autre script. |
+| `var CLE = 'entrevilles-theme';` | Le nom sous lequel le choix est enregistré. En JavaScript, les variables se déclarent avec `var` (ou `let`/`const`) et n'ont pas de `$`. |
+| `document.documentElement` | La balise `<html>` de la page. C'est sur elle que l'on pose `data-theme`. |
+| `localStorage` | Une petite mémoire du navigateur, propre à chaque site, qui survit à la fermeture de l'onglet. `getItem` lit, `setItem` écrit. Le `try { } catch (e) { }` protège des navigateurs qui l'interdisent (navigation privée stricte) : dans ce cas on continue sans mémoriser. |
+| `appliquer(theme)` | Pose ou retire l'attribut `data-theme="clair"` sur `<html>` ; le CSS fait le reste (section 11.1). |
+| `themeActuel()` | Lit l'attribut pour savoir dans quel thème on est. |
+| `mettreAJourBouton(bouton)` | Change le texte du bouton pour annoncer l'action possible, et `aria-pressed` pour les lecteurs d'écran. |
+| `appliquer(themeMemorise());` | Exécuté **immédiatement** au chargement du script : comme celui-ci est placé dans `<head>`, le thème mémorisé est appliqué avant que la page ne s'affiche. Sans cela, on verrait un flash sombre avant le passage au clair. |
+| `document.addEventListener('DOMContentLoaded', ...)` | « Quand la page sera entièrement construite, exécute ceci. » Indispensable : au moment où le script tourne, le bouton de la barre n'existe pas encore. |
+| `document.getElementById('basculeTheme')` | Retrouve le bouton par son `id`. S'il est absent (page d'erreur sans barre), on s'arrête sans planter. |
+| `bouton.addEventListener('click', ...)` | À chaque clic : calcule le thème opposé, l'applique, le mémorise, met le bouton à jour. |
+
+**Le bug d'origine, expliqué :** la première version du bouton ne fonctionnait
+pas pour trois raisons cumulées. Le bouton `#basculeTheme` attendu par le script
+n'avait jamais été ajouté à la barre de navigation ; le bloc `[data-theme="clair"]`
+avait disparu de la feuille de style lors d'une mise à jour qui avait aussi
+effacé par accident les 270 dernières lignes du CSS ; et une règle orpheline
+utilisait une variable inexistante (`--lagon-fonce`) tout en agrandissant tous
+les titres de cartes. La leçon : un thème repose sur **trois** pièces qui
+doivent exister ensemble, le bouton dans le HTML, le script qui pose
+l'attribut, et le bloc CSS qui réagit à cet attribut.
 
 ---
 
@@ -3324,6 +3511,9 @@ instructif.
 | **Ligne sans effet** dans `MembreEquipe::parUtilisateur`. | Supprimée. |
 | **Méthodes prêtes mais non branchées** (création d'épreuves, d'équipes, membres, participations…). | Toutes utilisées par l'espace d'administration (section 8). |
 | **Email non vérifié** à l'inscription. | `filter_var(..., FILTER_VALIDATE_EMAIL)` à l'inscription et dans l'administration. |
+| **Bouton de thème sans effet** : script présent mais bouton absent, bloc CSS clair perdu, variable `--lagon-fonce` inexistante. | Bouton ajouté à la barre, palette claire complète, script chargé dans `<head>`, règle orpheline supprimée (11.1, 11.3). |
+| **Bannière d'accueil sans style** : les classes `.hero` n'existaient pas dans le CSS. | Bannière dessinée (dégradé, halos, boutons d'action). |
+| **Texte invisible au survol des liens-boutons** : `a:hover` mettait le texte en cyan sur fond cyan. | `.bouton:hover` fixe la couleur du texte. |
 
 ### 13.2 Points restants
 
@@ -3391,7 +3581,11 @@ instructif.
 | **Hash / empreinte** | Résultat d'une fonction à sens unique appliquée à un mot de passe. |
 | **HTML** | Le langage de structure des pages web. |
 | **HTTP** | Le protocole d'échange entre navigateur et serveur (requêtes et réponses). |
+| **JavaScript** | Langage exécuté dans le navigateur (et non sur le serveur comme PHP) ; sert ici au bouton de thème. |
 | **JSON** | Format texte pour échanger des données structurées (`{"id": 1, "nom": "X"}`). |
+| **localStorage** | Petite mémoire du navigateur, propre à chaque site, où une page peut enregistrer des réglages (ici le thème choisi). |
+| **Événement** | Quelque chose qui se produit dans la page (clic, fin de chargement) et auquel du JavaScript peut réagir avec `addEventListener`. |
+| **Pseudo-élément** | Calque dessiné par le CSS sans balise HTML (`::before`, `::after`), utilisé ici pour les halos de la bannière et le filet des cartes. |
 | **Méthode statique** | Méthode appelée sur la classe (`Ville::toutes()`) sans créer d'objet. |
 | **Modèle** | Dans MVC, la partie qui lit et écrit les données. |
 | **MVC** | Modèle – Vue – Contrôleur : façon d'organiser le code en trois rôles. |

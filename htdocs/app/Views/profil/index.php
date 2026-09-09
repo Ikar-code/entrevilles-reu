@@ -9,7 +9,10 @@
 <h2>Mes équipes</h2>
 
 <?php if (empty($equipes)): ?>
-    <p>Tu ne fais partie d'aucune équipe pour le moment.</p>
+    <div class="etat-vide">
+        <p>Tu ne fais partie d'aucune équipe pour le moment.</p>
+        <a href="/equipes" class="bouton bouton-secondaire">Découvrir les équipes</a>
+    </div>
 <?php else: ?>
     <div class="grille-cartes">
         <?php foreach ($equipes as $membre): ?>

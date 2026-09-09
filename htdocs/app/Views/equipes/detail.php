@@ -4,7 +4,7 @@
 <h2>Membres de l'équipe</h2>
 
 <?php if (empty($membres)): ?>
-    <p>Aucun membre enregistré pour cette équipe.</p>
+    <div class="etat-vide"><p>Aucun membre enregistré pour cette équipe.</p></div>
 <?php else: ?>
     <table>
         <thead>
