@@ -1,86 +1,66 @@
-<h1>Administration</h1>
+<div class="hero">
+    <div class="hero-contenu">
+        <h1>Le défi sportif des communes de La Réunion</h1>
+        <p>Épreuves, équipes et classement inter-villes, en direct.</p>
+    </div>
+</div>
 
-<h2>Villes</h2>
-<a href="/admin/villes/nouvelle" class="bouton">+ Ajouter une ville</a>
+<h2>En chiffres</h2>
 
-<table>
-    <thead>
-        <tr><th>Nom</th><th></th></tr>
-    </thead>
-    <tbody>
-        <?php foreach ($villes as $ville): ?>
-            <tr>
-                <td><?= htmlspecialchars($ville['nom']) ?></td>
-                <td>
-                    <form method="POST" action="/admin/villes/<?= $ville['id'] ?>/supprimer" onsubmit="return confirm('Supprimer cette ville ?');" style="display:inline;">
-                        <button type="submit">Supprimer</button>
-                    </form>
-                </td>
-            </tr>
+<div class="grille-cartes">
+    <div class="carte">
+        <h3><?= $nombreVilles ?></h3>
+        <p>Villes participantes</p>
+    </div>
+    <div class="carte">
+        <h3><?= $nombreSports ?></h3>
+        <p>Sports au programme</p>
+    </div>
+    <div class="carte">
+        <h3><?= $nombreEquipes ?></h3>
+        <p>Équipes inscrites</p>
+    </div>
+    <div class="carte">
+        <h3><?= $nombreEpreuves ?></h3>
+        <p>Épreuves au total</p>
+    </div>
+</div>
+
+<h2>Épreuves par statut</h2>
+
+<div class="grille-cartes">
+    <div class="carte">
+        <span class="badge badge-a_venir">à venir</span>
+        <h3><?= $epreuvesParStatut['a_venir'] ?></h3>
+    </div>
+    <div class="carte">
+        <span class="badge badge-en_cours">en cours</span>
+        <h3><?= $epreuvesParStatut['en_cours'] ?></h3>
+    </div>
+    <div class="carte">
+        <span class="badge badge-terminee">terminées</span>
+        <h3><?= $epreuvesParStatut['terminee'] ?></h3>
+    </div>
+</div>
+
+<h2>Prochaines épreuves</h2>
+
+<?php if (empty($epreuvesAVenir)): ?>
+    <p>Aucune épreuve à venir pour le moment.</p>
+<?php else: ?>
+    <div class="grille-cartes">
+        <?php foreach ($epreuvesAVenir as $epreuve): ?>
+            <div class="carte">
+                <span class="badge badge-<?= htmlspecialchars($epreuve['statut']) ?>">
+                    <?= htmlspecialchars($epreuve['statut']) ?>
+                </span>
+                <h3><?= htmlspecialchars($epreuve['sport_nom']) ?></h3>
+                <p>À <?= htmlspecialchars($epreuve['ville_nom']) ?></p>
+                <?php if ($epreuve['date_heure']): ?>
+                    <p><?= (new DateTime($epreuve['date_heure']))->format('d/m/Y à H:i') ?></p>
+                <?php endif; ?>
+                <a href="/epreuves/<?= $epreuve['id'] ?>" class="bouton">Voir le détail</a>
+            </div>
         <?php endforeach; ?>
-    </tbody>
-</table>
-
-<h2>Sports</h2>
-<ul>
-    <?php foreach ($sports as $sport): ?>
-        <li><?= htmlspecialchars($sport['nom']) ?></li>
-    <?php endforeach; ?>
-</ul>
-
-<p style="margin-top:24px; color:#666; font-size:0.9rem;">
-    Le CRUD complet (équipes, sports, épreuves, participations/résultats) suit
-    le même modèle que celui des villes ci-dessus.
-</p>
-=== AdminController ===
-<?php
-class AdminController extends Controller
-{
-    public function __construct()
-    {
-        // Toutes les actions de ce contrôleur exigent d'être admin
-        Auth::exigerAdmin();
-    }
-
-    public function tableauDeBord(): void
-    {
-        $this->afficher('admin/tableau_de_bord', [
-            'titre'  => 'Administration',
-            'villes' => Ville::toutes(),
-            'sports' => Sport::tous(),
-        ]);
-    }
-
-    // ------------------------------------------------------------------
-    // CRUD Villes — sert de modèle à reproduire pour equipes/sports/epreuves
-    // ------------------------------------------------------------------
-
-    public function nouvelleVille(): void
-    {
-        $this->afficher('admin/villes/nouvelle', ['titre' => 'Nouvelle ville']);
-    }
-
-    public function creerVille(): void
-    {
-        $nom = trim($_POST['nom'] ?? '');
-
-        if ($nom === '') {
-            $this->afficher('admin/villes/nouvelle', [
-                'titre'  => 'Nouvelle ville',
-                'erreur' => 'Le nom est obligatoire.',
-            ]);
-            return;
-        }
-
-        Ville::creer($nom);
-        header('Location: /admin');
-        exit;
-    }
-
-    public function supprimerVille(string $id): void
-    {
-        Ville::supprimer((int) $id);
-        header('Location: /admin');
-        exit;
-    }
-}
+    </div>
+<?php endif; ?>
