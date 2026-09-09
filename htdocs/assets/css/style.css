@@ -1,6 +1,7 @@
 /* ============================================================
    Entrevilles-Reu — thème "dashboard esport"
-   Fond sombre intégral, accents néon (cyan/violet), typo technique.
+   Fond sombre par défaut, variante claire via [data-theme="clair"].
+   Accents néon (cyan/violet), typo technique.
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap');
@@ -14,12 +15,32 @@
 
     --texte:        #E7E9F0;
     --texte-doux:   #8B93A7;
+    --texte-fort:   #FFFFFF;
 
     --cyan:         #2DE1C2;
     --cyan-vif:     #4FF5D8;
     --violet:       #8B5CF6;
     --or:           #F5B942;
     --rose:         #FF4D6D;
+}
+
+/* ---------- Variante claire ---------- */
+[data-theme="clair"] {
+    --fond:         #F4F1EA;
+    --panneau:      #FFFFFF;
+    --panneau-alt:  #EDE9E0;
+    --bordure:      rgba(20, 20, 20, 0.1);
+    --bordure-vive: rgba(20, 20, 20, 0.18);
+
+    --texte:        #1B1E24;
+    --texte-doux:   #5B6270;
+    --texte-fort:   #0B0E14;
+
+    --cyan:         #0E8A75;
+    --cyan-vif:     #0AA98E;
+    --violet:       #6D3FD9;
+    --or:           #B9790C;
+    --rose:         #D6314F;
 }
 
 * { box-sizing: border-box; }
@@ -38,6 +59,7 @@ body {
         radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.06), transparent 40%);
     color: var(--texte);
     line-height: 1.55;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 main, body > .conteneur { flex: 1; }
@@ -48,7 +70,7 @@ h1, h2, h3 {
     line-height: 1.1;
     letter-spacing: 0.01em;
     margin: 0 0 0.5em;
-    color: #FFFFFF;
+    color: var(--texte-fort);
 }
 
 h1 { font-size: 2.5rem; }
@@ -92,7 +114,7 @@ a:hover { color: var(--cyan-vif); }
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
     font-size: 1.4rem;
-    color: #FFFFFF;
+    color: var(--texte-fort);
     letter-spacing: 0.02em;
 }
 
@@ -109,6 +131,20 @@ a:hover { color: var(--cyan-vif); }
 }
 
 .navbar-liens a:hover { color: var(--cyan); background: var(--panneau-alt); }
+
+.bouton-theme {
+    background: var(--panneau-alt);
+    border: 1px solid var(--bordure-vive);
+    color: var(--texte);
+    padding: 7px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    margin-left: 8px;
+}
+
+.bouton-theme:hover { border-color: var(--cyan); color: var(--cyan); }
 
 /* --- Cartes --- */
 
@@ -135,6 +171,12 @@ a:hover { color: var(--cyan-vif); }
 .carte h3 { margin-top: 12px; }
 .carte .bouton { margin-top: 12px; }
 
+.carte h3:only-of-type,
+.carte h3:first-child + p {
+    font-size: 2.2rem;
+    color: var(--cyan);
+}
+
 /* --- Tableaux --- */
 
 table {
@@ -142,269 +184,3 @@ table {
     border-collapse: collapse;
     background: var(--panneau);
     margin-top: 20px;
-    border: 1px solid var(--bordure);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-thead tr { background: var(--panneau-alt); }
-
-th {
-    text-align: left;
-    padding: 12px 14px;
-    color: var(--texte);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    font-size: 0.95rem;
-    letter-spacing: 0.02em;
-    border-bottom: 1px solid var(--bordure-vive);
-}
-
-td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--bordure); color: var(--texte); }
-
-tbody tr:hover { background: var(--panneau-alt); }
-tbody tr:last-child td { border-bottom: none; }
-
-td strong { color: var(--cyan); font-size: 1.05em; }
-
-/* --- État vide --- */
-
-.etat-vide {
-    margin-top: 20px;
-    padding: 32px 24px;
-    background: var(--panneau);
-    border: 1px dashed var(--bordure-vive);
-    border-radius: 6px;
-    text-align: center;
-    color: var(--texte-doux);
-}
-
-.etat-vide p { margin: 0 auto; }
-
-/* --- Badges de statut (effet lueur) --- */
-
-.badge {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-.badge-a_venir {
-    background: rgba(45, 225, 194, 0.12);
-    color: var(--cyan-vif);
-    border: 1px solid rgba(45, 225, 194, 0.4);
-}
-
-.badge-en_cours {
-    background: rgba(255, 77, 109, 0.12);
-    color: var(--rose);
-    border: 1px solid rgba(255, 77, 109, 0.4);
-}
-
-.badge-terminee {
-    background: rgba(245, 185, 66, 0.12);
-    color: var(--or);
-    border: 1px solid rgba(245, 185, 66, 0.4);
-}
-
-/* --- Formulaires --- */
-
-form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    max-width: 420px;
-    margin-top: 16px;
-    background: var(--panneau);
-    border: 1px solid var(--bordure);
-    border-radius: 6px;
-    padding: 24px;
-}
-
-label { font-weight: 600; font-size: 0.88rem; color: var(--texte-doux); }
-
-input, select, textarea {
-    padding: 10px 12px;
-    border: 1px solid var(--bordure-vive);
-    border-radius: 4px;
-    font-size: 1rem;
-    font-family: inherit;
-    background: var(--fond);
-    color: var(--texte);
-}
-
-input:focus, select:focus, textarea:focus {
-    outline: none;
-    border-color: var(--cyan);
-    box-shadow: 0 0 0 3px rgba(45, 225, 194, 0.15);
-}
-
-/* --- Boutons --- */
-
-button, .bouton {
-    padding: 11px 22px;
-    background: var(--cyan);
-    color: #06110F;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: 0.02em;
-    text-decoration: none;
-    display: inline-block;
-    width: fit-content;
-    transition: background 0.15s, box-shadow 0.15s;
-}
-
-button:hover, .bouton:hover {
-    background: var(--cyan-vif);
-    box-shadow: 0 0 20px rgba(45, 225, 194, 0.35);
-}
-
-.erreur {
-    color: var(--rose);
-    font-size: 0.9rem;
-    background: rgba(255, 77, 109, 0.1);
-    border: 1px solid rgba(255, 77, 109, 0.35);
-    border-radius: 4px;
-    padding: 10px 14px;
-    max-width: 420px;
-}
-
-/* --- Footer --- */
-
-.pied-page {
-    text-align: center;
-    padding: 24px;
-    background: var(--panneau);
-    border-top: 1px solid var(--bordure);
-    color: var(--texte-doux);
-    font-size: 0.85rem;
-}
-
-/* --- Responsive --- */
-
-@media (max-width: 640px) {
-    .navbar { flex-direction: column; align-items: flex-start; gap: 10px; }
-    h1 { font-size: 2rem; }
-    .conteneur { padding: 28px 16px; }
-}
-
-/* --- Espace d'administration --- */
-
-.menu-admin {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 24px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--bordure);
-}
-
-.menu-admin a {
-    padding: 7px 14px;
-    border-radius: 4px;
-    color: var(--texte-doux);
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.menu-admin a:hover, .menu-admin a.actif { color: var(--cyan); background: var(--panneau-alt); }
-
-.grille-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 14px;
-    margin: 20px 0 28px;
-}
-
-.stat {
-    display: block;
-    background: var(--panneau);
-    border: 1px solid var(--bordure);
-    border-radius: 6px;
-    padding: 16px;
-    color: var(--texte);
-    transition: border-color 0.15s;
-}
-
-.stat:hover { border-color: var(--cyan); color: var(--texte); }
-.stat strong { display: block; font-family: 'Rajdhani', sans-serif; font-size: 2rem; color: var(--cyan); line-height: 1; }
-.stat span { color: var(--texte-doux); font-size: 0.85rem; }
-
-.texte-doux { color: var(--texte-doux); font-size: 0.9rem; }
-.lien-secondaire { margin-top: 16px; font-size: 0.9rem; }
-
-/* Messages flash (après une redirection) */
-.flash {
-    padding: 10px 14px;
-    border-radius: 4px;
-    margin: 0 0 18px;
-    font-size: 0.92rem;
-    max-width: none;
-}
-.flash-succes { background: rgba(45, 225, 194, 0.12); border: 1px solid rgba(45, 225, 194, 0.4); color: var(--cyan-vif); }
-.flash-erreur { background: rgba(255, 77, 109, 0.1); border: 1px solid rgba(255, 77, 109, 0.35); color: var(--rose); }
-
-/* Formulaires en ligne dans les tableaux (boutons Supprimer, changement de statut…) */
-form.form-inline {
-    display: inline-flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    max-width: none;
-    margin: 0;
-    padding: 0;
-    background: none;
-    border: none;
-    vertical-align: middle;
-}
-form.form-inline input, form.form-inline select { padding: 6px 8px; font-size: 0.88rem; }
-form.form-large { max-width: 720px; }
-
-.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-
-.bouton-petit, form.form-inline button { padding: 6px 12px; font-size: 0.9rem; }
-
-.bouton-secondaire {
-    background: var(--panneau-alt);
-    color: var(--texte);
-    border: 1px solid var(--bordure-vive);
-}
-.bouton-secondaire:hover { background: var(--panneau); color: var(--cyan); border-color: var(--cyan); box-shadow: none; }
-
-.bouton-danger { background: var(--rose); color: #fff; }
-.bouton-danger:hover { background: #ff6b85; box-shadow: 0 0 20px rgba(255, 77, 109, 0.35); }
-
-/* Badges de rôle et de statut d'inscription */
-.badge-super_admin, .badge-admin {
-    background: rgba(139, 92, 246, 0.15);
-    color: #B79CFF;
-    border: 1px solid rgba(139, 92, 246, 0.45);
-}
-.badge-manager {
-    background: rgba(245, 185, 66, 0.12);
-    color: var(--or);
-    border: 1px solid rgba(245, 185, 66, 0.4);
-}
-.badge-joueur {
-    background: var(--panneau-alt);
-    color: var(--texte-doux);
-    border: 1px solid var(--bordure-vive);
-}
-.badge-validee {
-    background: rgba(45, 225, 194, 0.12);
-    color: var(--cyan-vif);
-    border: 1px solid rgba(45, 225, 194, 0.4);
-}
-.badge-en_attente {
-    background: rgba(245, 185, 66, 0.12);
-    color: var(--or);
-    border: 1px solid rgba(245, 185, 66, 0.4);
-}
