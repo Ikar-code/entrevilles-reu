@@ -1373,6 +1373,27 @@ class Format
 
 - `dateHeure()` : transforme la date brute de la base (`2026-09-20T15:00:00`) en « 20/09/2026 15:00 », ou renvoie un tiret si elle est vide. Le `try/catch` évite qu'une date mal formée ne fasse planter la page.
 - `dateHeureLocal()` : format exigé par un champ `<input type="datetime-local">` (`2026-09-20T15:00`), utilisé par le formulaire de modification d'une épreuve.
+- `asset(string $chemin)` : renvoie l'adresse d'un fichier statique **avec sa date de modification** en paramètre, par exemple `/assets/css/style.css?v=1757430000`.
+
+```php
+    public static function asset(string $chemin): string
+    {
+        $fichier = __DIR__ . '/../../' . ltrim($chemin, '/');
+        $version = is_file($fichier) ? (string) filemtime($fichier) : '1';
+        return $chemin . '?v=' . $version;
+    }
+```
+
+**Le problème résolu par `asset()` (« cache busting ») :** pour aller plus vite,
+un navigateur garde en mémoire (en **cache**) les fichiers CSS et JS déjà
+téléchargés, et l'hébergeur InfinityFree lui demande de les garder **30 jours**.
+Après une mise à jour du site, un visiteur revoyait donc l'ancienne feuille de
+style pendant des semaines : c'est exactement ce qui faisait croire que le
+bouton de thème « ne marchait pas ». `filemtime()` lit la date de dernière
+modification du fichier ; comme elle change à chaque mise en ligne, l'adresse
+change (`?v=…`), et le navigateur considère qu'il s'agit d'un nouveau fichier
+à télécharger. `ltrim($chemin, '/')` enlève le `/` de début pour construire le
+chemin sur le disque à partir de `htdocs/`.
 
 ---
 
@@ -2793,8 +2814,8 @@ visiteurs (attaque **XSS**).
 | `<meta name="viewport" ...>` | Adaptation aux écrans de téléphone. |
 | `<title>...` | Le titre de l'onglet : « Équipes — Entrevilles-Reu » si `$titre` existe, sinon juste « Entrevilles-Reu ». |
 | `<meta name="color-scheme" content="dark light">` | Prévient le navigateur que la page existe en sombre et en clair. |
-| `<link rel="stylesheet" ...>` | Charge la feuille de style. |
-| `<script src="/assets/js/theme.js">` | Charge le script du thème **dans l'entête**, avant l'affichage, pour appliquer tout de suite le thème mémorisé (section 11.3). |
+| `<link rel="stylesheet" href="<?= Format::asset('/assets/css/style.css') ?>">` | Charge la feuille de style. `Format::asset()` ajoute `?v=<date de modification>` à l'adresse pour que le navigateur retélécharge le fichier après chaque mise à jour (section 5.9). |
+| `<script src="<?= Format::asset('/assets/js/theme.js') ?>">` | Charge le script du thème **dans l'entête**, avant l'affichage, pour appliquer tout de suite le thème mémorisé (section 11.3). Même protection anti-cache. |
 | `require navbar.php` | Insère la barre de navigation. |
 | `foreach (Flash::recuperer() as $flash)` | Affiche les messages laissés par la page précédente (« Ville créée. »), un bandeau par message, puis les efface (voir 5.7). |
 | `<main class="conteneur">` + `require $cheminVue` | Insère **la vue demandée** par le contrôleur (`$cheminVue` vient de `Controller::afficher`). |
@@ -3514,6 +3535,7 @@ instructif.
 | **Bouton de thème sans effet** : script présent mais bouton absent, bloc CSS clair perdu, variable `--lagon-fonce` inexistante. | Bouton ajouté à la barre, palette claire complète, script chargé dans `<head>`, règle orpheline supprimée (11.1, 11.3). |
 | **Bannière d'accueil sans style** : les classes `.hero` n'existaient pas dans le CSS. | Bannière dessinée (dégradé, halos, boutons d'action). |
 | **Texte invisible au survol des liens-boutons** : `a:hover` mettait le texte en cyan sur fond cyan. | `.bouton:hover` fixe la couleur du texte. |
+| **Anciennes versions du CSS et du JS gardées 30 jours** par les navigateurs (réglage de cache de l'hébergeur) : après une mise à jour, le bouton de thème semblait ne pas fonctionner. | `Format::asset()` ajoute la date de modification à l'adresse des fichiers statiques (5.9) ; les pages d'erreur chargent aussi le thème. |
 
 ### 13.2 Points restants
 

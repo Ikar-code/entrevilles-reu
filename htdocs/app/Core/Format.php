@@ -29,4 +29,21 @@ class Format
             return '';
         }
     }
+
+    /**
+     * Adresse d'un fichier statique (CSS, JS) avec sa date de modification en
+     * paramètre : "/assets/css/style.css?v=1757430000".
+     *
+     * Pourquoi ("cache busting") : l'hébergeur demande aux navigateurs de garder
+     * les fichiers CSS/JS en cache pendant 30 jours. Sans cela, après une mise à
+     * jour, les visiteurs continueraient d'utiliser l'ancienne version. Comme la
+     * date change à chaque modification du fichier, l'adresse change aussi, et le
+     * navigateur retélécharge le fichier.
+     */
+    public static function asset(string $chemin): string
+    {
+        $fichier = __DIR__ . '/../../' . ltrim($chemin, '/');
+        $version = is_file($fichier) ? (string) filemtime($fichier) : '1';
+        return $chemin . '?v=' . $version;
+    }
 }
