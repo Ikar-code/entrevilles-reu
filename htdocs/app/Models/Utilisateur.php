@@ -2,6 +2,7 @@
 /**
  * Table "utilisateur" : les comptes (joueur, manager de ville, super admin).
  * Le mot de passe n'est stocké que sous forme de hash (password_hash).
+ * vous avez vu j'ai changer la methode de sauvegarde du mdp mr.ammany.
  */
 class Utilisateur
 {
