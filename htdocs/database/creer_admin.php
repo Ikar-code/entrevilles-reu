@@ -26,7 +26,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../app/Core/autoload.php';
 
 $email           = $argv[1] ?? 'admin@entrevilles-reu.re';
-$motDePasseClair = $argv[2] ?? 'changez-moi123'; // change-le juste après ta première connexion
+$motDePasseClair = $argv[2] ?? 'changez-moi123'; // j'ai changé juste après la première connexion
 $nomCompte       = $argv[3] ?? 'Super administrateur';
 
 if (strlen($motDePasseClair) < 8) {
